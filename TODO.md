@@ -82,14 +82,10 @@
 ### Medium Priority
 - [ ] Add Domain.com.au scraper (may have bot protection)
 - [ ] Implement scheduled daily scraping (cron)
-- [ ] Add property count badge on map
 - [ ] Improve mobile responsive layout
-- [ ] Add "Reset filters" confirmation
 - [ ] Show distance values in property popup/modal
 
 ### Low Priority
-- [ ] Add favicon and apple-touch-icon
-- [ ] Add meta tags for SEO
 - [ ] Add error handling UI (toast notifications)
 - [ ] Add property image lazy loading
 - [ ] Cache filter options in localStorage

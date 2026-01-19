@@ -51,9 +51,13 @@ func NewIsochroneGenerator(baseURL string) *IsochroneGenerator {
 // lat, lng: center point coordinates
 // minutes: driving time in minutes
 func (g *IsochroneGenerator) GenerateIsochrone(ctx context.Context, lat, lng float64, minutes int) (*GeoJSONFeatureCollection, error) {
+	// Apply 20% buffer to make isochrones more conservative
+	// (accounts for traffic, stops, slower rural roads)
+	adjustedMinutes := int(float64(minutes) * 0.8)
+
 	url := fmt.Sprintf(
 		"%s/isochrone?json={\"locations\":[{\"lat\":%f,\"lon\":%f}],\"costing\":\"auto\",\"contours\":[{\"time\":%d}],\"polygons\":true}",
-		g.baseURL, lat, lng, minutes,
+		g.baseURL, lat, lng, adjustedMinutes,
 	)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
