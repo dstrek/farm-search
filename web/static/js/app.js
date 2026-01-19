@@ -17,6 +17,9 @@ const App = {
         // Setup modal
         this.initModal();
 
+        // Setup layer switcher
+        this.initLayerSwitcher();
+
         // Load initial properties
         this.loadProperties();
     },
@@ -147,6 +150,24 @@ const App = {
             if (e.key === 'Escape') {
                 this.hideModal();
             }
+        });
+    },
+
+    // Initialize layer switcher
+    initLayerSwitcher() {
+        const streetsBtn = document.getElementById('layer-streets');
+        const satelliteBtn = document.getElementById('layer-satellite');
+
+        streetsBtn.addEventListener('click', () => {
+            PropertyMap.setBaseLayer('streets');
+            streetsBtn.classList.add('active');
+            satelliteBtn.classList.remove('active');
+        });
+
+        satelliteBtn.addEventListener('click', () => {
+            PropertyMap.setBaseLayer('satellite');
+            satelliteBtn.classList.add('active');
+            streetsBtn.classList.remove('active');
         });
     },
 

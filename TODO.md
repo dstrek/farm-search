@@ -79,6 +79,15 @@
 
 ## Backlog
 
+### High Priority
+- [ ] Pre-compute drive time to Sutherland for each property and show in popup
+- [ ] Replace "distance from Sydney" filter with "drive time to Sutherland" filter
+- [ ] Store a list of towns in the database
+- [ ] Show distance to 2 nearest towns on each property
+- [ ] Update "distance from town" filter to check max distance of property to its nearest town
+- [ ] Research NSW Planning Portal for spatial data to get property boundaries
+- [ ] Render property boundaries on map after a certain zoom level
+
 ### Medium Priority
 - [ ] Add Domain.com.au scraper (may have bot protection)
 - [ ] Implement scheduled daily scraping (cron)

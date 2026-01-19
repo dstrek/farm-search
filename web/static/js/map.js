@@ -12,6 +12,7 @@ const PropertyMap = {
     isochroneSourceId: 'isochrone-source',
     propertiesSourceId: 'properties-source',
     propertiesLayerId: 'properties-layer',
+    currentBaseLayer: 'streets',  // 'streets' or 'satellite'
 
     // Marker colours per source
     sourceColors: {
@@ -51,6 +52,14 @@ const PropertyMap = {
                         ],
                         tileSize: 256,
                         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    },
+                    satellite: {
+                        type: 'raster',
+                        tiles: [
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                        ],
+                        tileSize: 256,
+                        attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
                     }
                 },
                 layers: [
@@ -60,6 +69,16 @@ const PropertyMap = {
                         source: 'osm',
                         minzoom: 0,
                         maxzoom: 19
+                    },
+                    {
+                        id: 'satellite-tiles',
+                        type: 'raster',
+                        source: 'satellite',
+                        minzoom: 0,
+                        maxzoom: 19,
+                        layout: {
+                            visibility: 'none'
+                        }
                     }
                 ]
             },
@@ -280,5 +299,21 @@ const PropertyMap = {
         });
 
         this.map.fitBounds(bounds, { padding: 50 });
+    },
+
+    // Switch between base layers (streets or satellite)
+    setBaseLayer(layer) {
+        if (layer === this.currentBaseLayer) return;
+        
+        this.onReady(() => {
+            if (layer === 'satellite') {
+                this.map.setLayoutProperty('osm-tiles', 'visibility', 'none');
+                this.map.setLayoutProperty('satellite-tiles', 'visibility', 'visible');
+            } else {
+                this.map.setLayoutProperty('satellite-tiles', 'visibility', 'none');
+                this.map.setLayoutProperty('osm-tiles', 'visibility', 'visible');
+            }
+            this.currentBaseLayer = layer;
+        });
     }
 };

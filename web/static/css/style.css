@@ -187,6 +187,39 @@ select {
     margin-bottom: 12px;
 }
 
+/* Layer switcher */
+.layer-switcher {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.layer-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border: none;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.layer-btn:not(:last-child) {
+    border-right: 1px solid var(--border-color);
+}
+
+.layer-btn:hover {
+    background: var(--border-color);
+}
+
+.layer-btn.active {
+    background: var(--primary-color);
+    color: white;
+}
+
 /* Results Info */
 .results-info {
     padding: 16px 20px;

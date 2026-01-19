@@ -14,7 +14,6 @@
         <aside id="sidebar">
             <div class="sidebar-header">
                 <h1>Farm Search</h1>
-                <p>NSW Property Map</p>
             </div>
             
             <div class="filters">
@@ -49,7 +48,13 @@
             </div>
 
             <div class="overlays">
-                <h2>Overlays</h2>
+                <div class="filter-group">
+                    <label>Map Style</label>
+                    <div class="layer-switcher">
+                        <button id="layer-streets" class="layer-btn active">Streets</button>
+                        <button id="layer-satellite" class="layer-btn">Satellite</button>
+                    </div>
+                </div>
                 <div class="filter-group">
                     <label for="drive-time-sydney">Drive time from Sutherland</label>
                     <select id="drive-time-sydney">
