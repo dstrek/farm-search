@@ -40,7 +40,8 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 			COALESCE(p.property_type, '') as property_type,
 			COALESCE(p.address, '') as address,
 			COALESCE(p.suburb, '') as suburb,
-			p.source
+			p.source,
+			p.drive_time_sydney
 		FROM properties p
 		LEFT JOIN property_distances pd_sydney ON p.id = pd_sydney.property_id 
 			AND pd_sydney.target_type = 'capital' AND pd_sydney.target_name = 'Sydney'
@@ -154,31 +155,33 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 			bedrooms, bathrooms, land_size_sqm,
 			COALESCE(description, '') as description,
 			COALESCE(images, '[]') as images,
-			listed_at
+			listed_at,
+			drive_time_sydney
 		FROM properties WHERE id = ?
 	`
 
 	var p struct {
-		ID           int64    `db:"id"`
-		ExternalID   string   `db:"external_id"`
-		Source       string   `db:"source"`
-		URL          string   `db:"url"`
-		Address      string   `db:"address"`
-		Suburb       string   `db:"suburb"`
-		State        string   `db:"state"`
-		Postcode     string   `db:"postcode"`
-		Latitude     float64  `db:"latitude"`
-		Longitude    float64  `db:"longitude"`
-		PriceMin     *int64   `db:"price_min"`
-		PriceMax     *int64   `db:"price_max"`
-		PriceText    string   `db:"price_text"`
-		PropertyType string   `db:"property_type"`
-		Bedrooms     *int64   `db:"bedrooms"`
-		Bathrooms    *int64   `db:"bathrooms"`
-		LandSizeSqm  *float64 `db:"land_size_sqm"`
-		Description  string   `db:"description"`
-		Images       string   `db:"images"`
-		ListedAt     *string  `db:"listed_at"`
+		ID              int64    `db:"id"`
+		ExternalID      string   `db:"external_id"`
+		Source          string   `db:"source"`
+		URL             string   `db:"url"`
+		Address         string   `db:"address"`
+		Suburb          string   `db:"suburb"`
+		State           string   `db:"state"`
+		Postcode        string   `db:"postcode"`
+		Latitude        float64  `db:"latitude"`
+		Longitude       float64  `db:"longitude"`
+		PriceMin        *int64   `db:"price_min"`
+		PriceMax        *int64   `db:"price_max"`
+		PriceText       string   `db:"price_text"`
+		PropertyType    string   `db:"property_type"`
+		Bedrooms        *int64   `db:"bedrooms"`
+		Bathrooms       *int64   `db:"bathrooms"`
+		LandSizeSqm     *float64 `db:"land_size_sqm"`
+		Description     string   `db:"description"`
+		Images          string   `db:"images"`
+		ListedAt        *string  `db:"listed_at"`
+		DriveTimeSydney *int     `db:"drive_time_sydney"`
 	}
 
 	err := db.Get(&p, query, id)
@@ -193,27 +196,28 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 	sources, _ := db.GetPropertySources(id)
 
 	return &models.PropertyDetail{
-		ID:           p.ID,
-		ExternalID:   p.ExternalID,
-		Source:       p.Source,
-		URL:          p.URL,
-		Sources:      sources,
-		Address:      p.Address,
-		Suburb:       p.Suburb,
-		State:        p.State,
-		Postcode:     p.Postcode,
-		Latitude:     p.Latitude,
-		Longitude:    p.Longitude,
-		PriceMin:     p.PriceMin,
-		PriceMax:     p.PriceMax,
-		PriceText:    p.PriceText,
-		PropertyType: p.PropertyType,
-		Bedrooms:     p.Bedrooms,
-		Bathrooms:    p.Bathrooms,
-		LandSizeSqm:  p.LandSizeSqm,
-		Description:  p.Description,
-		Images:       images,
-		ListedAt:     p.ListedAt,
+		ID:              p.ID,
+		ExternalID:      p.ExternalID,
+		Source:          p.Source,
+		URL:             p.URL,
+		Sources:         sources,
+		Address:         p.Address,
+		Suburb:          p.Suburb,
+		State:           p.State,
+		Postcode:        p.Postcode,
+		Latitude:        p.Latitude,
+		Longitude:       p.Longitude,
+		PriceMin:        p.PriceMin,
+		PriceMax:        p.PriceMax,
+		PriceText:       p.PriceText,
+		PropertyType:    p.PropertyType,
+		Bedrooms:        p.Bedrooms,
+		Bathrooms:       p.Bathrooms,
+		LandSizeSqm:     p.LandSizeSqm,
+		Description:     p.Description,
+		Images:          images,
+		ListedAt:        p.ListedAt,
+		DriveTimeSydney: p.DriveTimeSydney,
 	}, nil
 }
 
@@ -412,4 +416,32 @@ func (db *DB) GetPropertyDistances(propertyID int64) ([]models.PropertyDistance,
 	var distances []models.PropertyDistance
 	err := db.Select(&distances, query, propertyID)
 	return distances, err
+}
+
+// UpdatePropertyDriveTime updates the drive time to Sydney for a property
+func (db *DB) UpdatePropertyDriveTime(propertyID int64, driveTimeMins int) error {
+	_, err := db.Exec("UPDATE properties SET drive_time_sydney = ? WHERE id = ?", driveTimeMins, propertyID)
+	return err
+}
+
+// GetPropertiesWithoutDriveTime returns properties that don't have drive time calculated
+func (db *DB) GetPropertiesWithoutDriveTime() ([]models.PropertyListItem, error) {
+	query := `
+		SELECT 
+			id,
+			latitude,
+			longitude,
+			COALESCE(price_text, '') as price_text,
+			COALESCE(property_type, '') as property_type,
+			COALESCE(address, '') as address,
+			COALESCE(suburb, '') as suburb,
+			source
+		FROM properties 
+		WHERE latitude IS NOT NULL 
+			AND longitude IS NOT NULL 
+			AND drive_time_sydney IS NULL
+	`
+	var properties []models.PropertyListItem
+	err := db.Select(&properties, query)
+	return properties, err
 }

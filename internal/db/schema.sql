@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS properties (
     images TEXT,
     listed_at DATETIME,
     scraped_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL
+    updated_at DATETIME NOT NULL,
+    drive_time_sydney INTEGER  -- Drive time to Sutherland in minutes (via Valhalla routing)
 );
 
 -- Pre-computed distances for filtering

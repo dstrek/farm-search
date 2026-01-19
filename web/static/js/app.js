@@ -118,6 +118,15 @@ const App = {
             `;
         }
 
+        // Format drive time if available
+        let driveTimeHtml = '';
+        if (property.drive_time_sydney) {
+            const hours = Math.floor(property.drive_time_sydney / 60);
+            const mins = property.drive_time_sydney % 60;
+            const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
+            driveTimeHtml = `<div class="drive-time-info">${timeStr} drive to Sutherland</div>`;
+        }
+
         container.innerHTML = `
             <h2>${property.address || 'Property Details'}</h2>
             <div class="price">${property.price_text || 'Contact Agent'}</div>
@@ -127,6 +136,7 @@ const App = {
                 ${property.bathrooms ? `<span>${property.bathrooms} baths</span>` : ''}
                 ${property.land_size_sqm ? `<span>${formatLandSize(property.land_size_sqm)}</span>` : ''}
             </div>
+            ${driveTimeHtml}
             ${imagesHtml}
             <div class="description">${property.description || 'No description available.'}</div>
             ${sourcesHtml}

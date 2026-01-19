@@ -230,6 +230,15 @@ const PropertyMap = {
 
     // Show popup for a property
     showPropertyPopup(property) {
+        // Format drive time if available
+        let driveTimeHtml = '';
+        if (property.drive_time_sydney) {
+            const hours = Math.floor(property.drive_time_sydney / 60);
+            const mins = property.drive_time_sydney % 60;
+            const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
+            driveTimeHtml = `<div class="drive-time">${timeStr} to Sutherland</div>`;
+        }
+
         const html = `
             <div class="popup-content">
                 <h3>${property.address || property.suburb || 'Property'}</h3>
@@ -238,6 +247,7 @@ const PropertyMap = {
                     ${property.property_type ? `<span>${property.property_type}</span>` : ''}
                     ${property.suburb ? `<span>${property.suburb}</span>` : ''}
                 </div>
+                ${driveTimeHtml}
                 <button class="view-btn" data-id="${property.id}">View Details</button>
             </div>
         `;

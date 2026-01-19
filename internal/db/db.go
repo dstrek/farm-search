@@ -51,5 +51,14 @@ func migrate(db *sqlx.DB) error {
 		return fmt.Errorf("failed to execute schema: %w", err)
 	}
 
+	// Run additional migrations for existing databases
+	runMigrations(db)
+
 	return nil
+}
+
+// runMigrations handles schema changes for existing databases
+func runMigrations(db *sqlx.DB) {
+	// Add drive_time_sydney column if it doesn't exist
+	db.Exec("ALTER TABLE properties ADD COLUMN drive_time_sydney INTEGER")
 }

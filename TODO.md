@@ -80,7 +80,7 @@
 ## Backlog
 
 ### High Priority
-- [ ] Pre-compute drive time to Sutherland for each property and show in popup
+- [x] Pre-compute drive time to Sutherland for each property and show in popup
 - [ ] Replace "distance from Sydney" filter with "drive time to Sutherland" filter
 - [ ] Store a list of towns in the database
 - [ ] Show distance to 2 nearest towns on each property

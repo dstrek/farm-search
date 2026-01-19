@@ -63,14 +63,15 @@ type School struct {
 
 // PropertyListItem is a lightweight property for map markers
 type PropertyListItem struct {
-	ID           int64   `db:"id" json:"id"`
-	Latitude     float64 `db:"latitude" json:"lat"`
-	Longitude    float64 `db:"longitude" json:"lng"`
-	PriceText    string  `db:"price_text" json:"price_text"`
-	PropertyType string  `db:"property_type" json:"property_type"`
-	Address      string  `db:"address" json:"address"`
-	Suburb       string  `db:"suburb" json:"suburb"`
-	Source       string  `db:"source" json:"source"`
+	ID              int64   `db:"id" json:"id"`
+	Latitude        float64 `db:"latitude" json:"lat"`
+	Longitude       float64 `db:"longitude" json:"lng"`
+	PriceText       string  `db:"price_text" json:"price_text"`
+	PropertyType    string  `db:"property_type" json:"property_type"`
+	Address         string  `db:"address" json:"address"`
+	Suburb          string  `db:"suburb" json:"suburb"`
+	Source          string  `db:"source" json:"source"`
+	DriveTimeSydney *int    `db:"drive_time_sydney" json:"drive_time_sydney,omitempty"`
 }
 
 // PropertySource represents a listing source for a property
@@ -81,25 +82,26 @@ type PropertySource struct {
 
 // PropertyDetail is the full property info for popup/modal
 type PropertyDetail struct {
-	ID           int64            `json:"id"`
-	ExternalID   string           `json:"external_id"`
-	Source       string           `json:"source"`
-	URL          string           `json:"url"`
-	Sources      []PropertySource `json:"sources,omitempty"` // All sources where this property is listed
-	Address      string           `json:"address"`
-	Suburb       string           `json:"suburb"`
-	State        string           `json:"state"`
-	Postcode     string           `json:"postcode"`
-	Latitude     float64          `json:"lat"`
-	Longitude    float64          `json:"lng"`
-	PriceMin     *int64           `json:"price_min,omitempty"`
-	PriceMax     *int64           `json:"price_max,omitempty"`
-	PriceText    string           `json:"price_text"`
-	PropertyType string           `json:"property_type"`
-	Bedrooms     *int64           `json:"bedrooms,omitempty"`
-	Bathrooms    *int64           `json:"bathrooms,omitempty"`
-	LandSizeSqm  *float64         `json:"land_size_sqm,omitempty"`
-	Description  string           `json:"description"`
-	Images       []string         `json:"images"`
-	ListedAt     *string          `json:"listed_at,omitempty"`
+	ID              int64            `json:"id"`
+	ExternalID      string           `json:"external_id"`
+	Source          string           `json:"source"`
+	URL             string           `json:"url"`
+	Sources         []PropertySource `json:"sources,omitempty"` // All sources where this property is listed
+	Address         string           `json:"address"`
+	Suburb          string           `json:"suburb"`
+	State           string           `json:"state"`
+	Postcode        string           `json:"postcode"`
+	Latitude        float64          `json:"lat"`
+	Longitude       float64          `json:"lng"`
+	PriceMin        *int64           `json:"price_min,omitempty"`
+	PriceMax        *int64           `json:"price_max,omitempty"`
+	PriceText       string           `json:"price_text"`
+	PropertyType    string           `json:"property_type"`
+	Bedrooms        *int64           `json:"bedrooms,omitempty"`
+	Bathrooms       *int64           `json:"bathrooms,omitempty"`
+	LandSizeSqm     *float64         `json:"land_size_sqm,omitempty"`
+	Description     string           `json:"description"`
+	Images          []string         `json:"images"`
+	ListedAt        *string          `json:"listed_at,omitempty"`
+	DriveTimeSydney *int             `json:"drive_time_sydney,omitempty"` // Drive time to Sutherland in minutes
 }

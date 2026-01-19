@@ -29,6 +29,8 @@ func main() {
 		generateIsochrones()
 	case "distances":
 		calculateDistances()
+	case "drivetimes":
+		calculateDriveTimes()
 	case "seed":
 		seedSampleData()
 	default:
@@ -41,9 +43,10 @@ func printUsage() {
 	fmt.Println("Usage: tools <command> [options]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  isochrones  Generate Sydney drive-time isochrones")
-	fmt.Println("  distances   Calculate property distances to towns, schools, Sydney")
-	fmt.Println("  seed        Seed database with sample data")
+	fmt.Println("  isochrones   Generate Sydney drive-time isochrones")
+	fmt.Println("  distances    Calculate property distances to towns, schools, Sydney")
+	fmt.Println("  drivetimes   Calculate drive times to Sutherland for all properties")
+	fmt.Println("  seed         Seed database with sample data")
 }
 
 func generateIsochrones() {
@@ -177,4 +180,106 @@ func seedSampleData() {
 
 	count, _ := database.GetPropertyCount()
 	log.Printf("Database seeded successfully! Total properties: %d", count)
+}
+
+func calculateDriveTimes() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	valhallaURL := flag.String("valhalla-url", "", "Valhalla server URL (e.g., http://localhost:8002 for local)")
+	all := flag.Bool("all", false, "Recalculate all properties, not just missing ones")
+	flag.Parse()
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// Create router
+	isLocal := *valhallaURL != ""
+	var router *geo.Router
+	if isLocal {
+		log.Printf("Using local Valhalla at %s (no rate limiting)", *valhallaURL)
+		router = geo.NewRouter(*valhallaURL)
+	} else {
+		log.Println("Using public Valhalla API (rate limited)")
+		router = geo.NewRouter("")
+	}
+
+	// Get properties
+	var properties []struct {
+		ID        int64   `db:"id"`
+		Latitude  float64 `db:"latitude"`
+		Longitude float64 `db:"longitude"`
+		Address   string  `db:"address"`
+		Suburb    string  `db:"suburb"`
+	}
+
+	var query string
+	if *all {
+		query = `SELECT id, latitude, longitude, COALESCE(address, '') as address, COALESCE(suburb, '') as suburb 
+				 FROM properties WHERE latitude IS NOT NULL AND longitude IS NOT NULL`
+	} else {
+		query = `SELECT id, latitude, longitude, COALESCE(address, '') as address, COALESCE(suburb, '') as suburb 
+				 FROM properties WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND drive_time_sydney IS NULL`
+	}
+
+	err = database.Select(&properties, query)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No properties need drive time calculation")
+		return
+	}
+
+	log.Printf("Calculating drive times for %d properties to Sutherland...", len(properties))
+	log.Printf("Sutherland coordinates: %.4f, %.4f", geo.Sutherland.Lat, geo.Sutherland.Lng)
+
+	success := 0
+	failed := 0
+
+	for i, p := range properties {
+		// Get drive time
+		result, err := router.GetDriveTime(ctx, p.Latitude, p.Longitude)
+		if err != nil {
+			log.Printf("[%d/%d] Failed for property %d (%s, %s): %v",
+				i+1, len(properties), p.ID, p.Address, p.Suburb, err)
+			failed++
+			if !isLocal {
+				time.Sleep(500 * time.Millisecond)
+			}
+			continue
+		}
+
+		// Round to nearest minute
+		driveTimeMins := int(result.DurationMins + 0.5)
+
+		// Save to database immediately
+		err = database.UpdatePropertyDriveTime(p.ID, driveTimeMins)
+		if err != nil {
+			log.Printf("[%d/%d] Failed to save drive time for property %d: %v",
+				i+1, len(properties), p.ID, err)
+			failed++
+			continue
+		}
+
+		location := p.Suburb
+		if p.Address != "" {
+			location = p.Address
+		}
+		log.Printf("[%d/%d] Property %d (%s): %d mins (%.1f km)",
+			i+1, len(properties), p.ID, location, driveTimeMins, result.DistanceKm)
+
+		success++
+
+		// Rate limiting only for public API
+		if !isLocal {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	log.Printf("Done! Success: %d, Failed: %d", success, failed)
 }

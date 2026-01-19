@@ -18,6 +18,8 @@ help:
 # Run the server in development mode with live reload
 run:
 	@command -v air >/dev/null 2>&1 || { echo "Installing air..."; go install github.com/air-verse/air@latest; }
+	@# Kill any orphaned process on port 8080
+	@PID=$$(lsof -ti:8080 2>/dev/null); if [ -n "$$PID" ]; then echo "Killing orphaned process on port 8080 (PID: $$PID)"; kill -9 $$PID 2>/dev/null || true; fi
 	@if [ -f .env ]; then set -a && . ./.env && set +a; fi && PATH="$$PATH:$$(go env GOPATH)/bin" air
 
 # Build binaries
