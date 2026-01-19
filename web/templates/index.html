@@ -28,8 +28,8 @@
                 </div>
 
                 <div class="filter-group">
-                    <label for="distance-sydney">Distance from Sydney <span id="distance-sydney-value">Any</span></label>
-                    <input type="range" id="distance-sydney" min="0" max="500" value="500">
+                    <label for="drive-time-sydney">Drive time to Sutherland <span id="drive-time-sydney-value">Any</span></label>
+                    <input type="range" id="drive-time-sydney" min="30" max="480" step="30" value="480">
                 </div>
 
                 <div class="filter-group">
@@ -56,20 +56,13 @@
                     </div>
                 </div>
                 <div class="filter-group">
-                    <label for="drive-time-sydney">Drive time from Sutherland</label>
-                    <select id="drive-time-sydney">
+                    <label for="isochrone-overlay">Show drive time area</label>
+                    <select id="isochrone-overlay">
                         <option value="">None</option>
-                        <option value="15">15 minutes</option>
-                        <option value="30">30 minutes</option>
-                        <option value="45">45 minutes</option>
                         <option value="60">1 hour</option>
-                        <option value="75">1 hr 15 min</option>
-                        <option value="90">1 hr 30 min</option>
-                        <option value="105">1 hr 45 min</option>
+                        <option value="90">1.5 hours</option>
                         <option value="120">2 hours</option>
-                        <option value="135">2 hr 15 min</option>
-                        <option value="150">2 hr 30 min</option>
-                        <option value="165">2 hr 45 min</option>
+                        <option value="150">2.5 hours</option>
                         <option value="180">3 hours</option>
                     </select>
                 </div>

@@ -4,17 +4,17 @@ const Filters = {
     // Storage configuration
     // Bump this version when filter structure changes to auto-reset invalid saved data
     STORAGE_KEY: 'farm-search-filters',
-    STORAGE_VERSION: 1,
+    STORAGE_VERSION: 2,
 
     // Define expected filter schema for validation
     // Each key maps to: { type, min, max } for range validation
     filterSchema: {
         'price-max': { type: 'number', min: 0, max: 36 },
         'land-size-min': { type: 'number', min: 0, max: 10 },
-        'distance-sydney': { type: 'number', min: 0, max: 500 },
+        'drive-time-sydney': { type: 'number', min: 30, max: 480 },
         'distance-town': { type: 'number', min: 0, max: 100 },
         'distance-school': { type: 'number', min: 0, max: 50 },
-        'drive-time-sydney': { type: 'string', allowed: ['', '15', '30', '45', '60', '75', '90', '105', '120', '135', '150', '165', '180'] }
+        'isochrone-overlay': { type: 'string', allowed: ['', '60', '90', '120', '150', '180'] }
     },
 
     // Price steps: $0, $100k-$2M in $100k increments, then $2.5M-$10M in $500k increments
@@ -54,10 +54,10 @@ const Filters = {
             filters.landSizeMin = (landSizeIdx + 1) * 10 * 10000;
         }
 
-        // Distance from Sydney
-        const distanceSydney = document.getElementById('distance-sydney');
-        if (distanceSydney.value < distanceSydney.max) {
-            filters.distanceSydneyMax = parseInt(distanceSydney.value, 10);
+        // Drive time to Sutherland (in minutes)
+        const driveTime = document.getElementById('drive-time-sydney');
+        if (parseInt(driveTime.value, 10) < parseInt(driveTime.max, 10)) {
+            filters.driveTimeSydneyMax = parseInt(driveTime.value, 10);
         }
 
         // Distance from town
@@ -72,8 +72,6 @@ const Filters = {
             filters.distanceSchoolMax = parseInt(distanceSchool.value, 10);
         }
 
-        // Note: Drive time dropdown only controls isochrone display, not property filtering
-
         return filters;
     },
 
@@ -87,9 +85,9 @@ const Filters = {
         landSize.value = 10;
         this.updateRangeDisplay('land-size-min', 'Any');
 
-        const distanceSydney = document.getElementById('distance-sydney');
-        distanceSydney.value = distanceSydney.max;
-        this.updateRangeDisplay('distance-sydney', 'Any');
+        const driveTime = document.getElementById('drive-time-sydney');
+        driveTime.value = driveTime.max;
+        this.updateRangeDisplay('drive-time-sydney', 'Any');
 
         const distanceTown = document.getElementById('distance-town');
         distanceTown.value = distanceTown.max;
@@ -99,7 +97,10 @@ const Filters = {
         distanceSchool.value = distanceSchool.max;
         this.updateRangeDisplay('distance-school', 'Any');
 
-        document.getElementById('drive-time-sydney').value = '';
+        document.getElementById('isochrone-overlay').value = '';
+        if (typeof PropertyMap !== 'undefined') {
+            PropertyMap.setIsochrone('sutherland', '');
+        }
     },
 
     // Update range slider display value
@@ -149,13 +150,15 @@ const Filters = {
         // Land size slider
         this.initLandSizeSlider('land-size-min', onApplyAndSave);
 
+        // Drive time slider
+        this.initDriveTimeSlider('drive-time-sydney', onApplyAndSave);
+
         // Range sliders - apply on change (mouseup/touchend)
-        this.initRangeSlider('distance-sydney', 500, 'km', onApplyAndSave);
         this.initRangeSlider('distance-town', 100, 'km', onApplyAndSave);
         this.initRangeSlider('distance-school', 50, 'km', onApplyAndSave);
 
-        // Drive time dropdown - updates isochrone display and saves state
-        document.getElementById('drive-time-sydney').addEventListener('change', (e) => {
+        // Isochrone overlay dropdown - updates map display only (not filtering)
+        document.getElementById('isochrone-overlay').addEventListener('change', (e) => {
             const minutes = e.target.value;
             if (typeof PropertyMap !== 'undefined') {
                 PropertyMap.setIsochrone('sutherland', minutes);
@@ -163,11 +166,11 @@ const Filters = {
             this.save();
         });
 
-        // If we restored saved filters with a drive time, load that isochrone when map is ready
+        // If we restored saved filters with an isochrone, load it when map is ready
         if (hadSavedFilters) {
-            const driveTime = document.getElementById('drive-time-sydney').value;
-            if (driveTime && typeof PropertyMap !== 'undefined') {
-                PropertyMap.onReady(() => PropertyMap.setIsochrone('sutherland', driveTime));
+            const isochrone = document.getElementById('isochrone-overlay').value;
+            if (isochrone && typeof PropertyMap !== 'undefined') {
+                PropertyMap.onReady(() => PropertyMap.setIsochrone('sutherland', isochrone));
             }
         }
     },
@@ -225,6 +228,31 @@ const Filters = {
             } else {
                 display.textContent = `${(idx + 1) * 10} HA`;
             }
+        });
+
+        // Apply filter on change (when released)
+        input.addEventListener('change', onApply);
+    },
+
+    // Format drive time for display (e.g., 90 -> "1h 30m", 480 -> "Any")
+    formatDriveTime(minutes) {
+        if (minutes >= 480) return 'Any';
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        if (hours === 0) return `${mins}m`;
+        if (mins === 0) return `${hours}h`;
+        return `${hours}h ${mins}m`;
+    },
+
+    // Initialize drive time slider (30 min increments, 30 min - 8 hours)
+    initDriveTimeSlider(inputId, onApply) {
+        const input = document.getElementById(inputId);
+        const display = document.getElementById(`${inputId}-value`);
+
+        // Update display on input (while dragging)
+        input.addEventListener('input', () => {
+            const mins = parseInt(input.value, 10);
+            display.textContent = this.formatDriveTime(mins);
         });
 
         // Apply filter on change (when released)
@@ -298,10 +326,10 @@ const Filters = {
         return {
             'price-max': parseInt(document.getElementById('price-max').value, 10),
             'land-size-min': parseInt(document.getElementById('land-size-min').value, 10),
-            'distance-sydney': parseInt(document.getElementById('distance-sydney').value, 10),
+            'drive-time-sydney': parseInt(document.getElementById('drive-time-sydney').value, 10),
             'distance-town': parseInt(document.getElementById('distance-town').value, 10),
             'distance-school': parseInt(document.getElementById('distance-school').value, 10),
-            'drive-time-sydney': document.getElementById('drive-time-sydney').value
+            'isochrone-overlay': document.getElementById('isochrone-overlay').value
         };
     },
 
@@ -367,11 +395,10 @@ const Filters = {
             this.updateRangeDisplay('land-size-min', display);
         }
 
-        if (filters['distance-sydney'] !== undefined) {
-            const el = document.getElementById('distance-sydney');
-            el.value = filters['distance-sydney'];
-            const display = filters['distance-sydney'] >= 500 ? 'Any' : `${filters['distance-sydney']} km`;
-            this.updateRangeDisplay('distance-sydney', display);
+        if (filters['drive-time-sydney'] !== undefined) {
+            const el = document.getElementById('drive-time-sydney');
+            el.value = filters['drive-time-sydney'];
+            this.updateRangeDisplay('drive-time-sydney', this.formatDriveTime(filters['drive-time-sydney']));
         }
 
         if (filters['distance-town'] !== undefined) {
@@ -388,9 +415,9 @@ const Filters = {
             this.updateRangeDisplay('distance-school', display);
         }
 
-        // Restore drive time dropdown (but don't trigger isochrone load yet)
-        if (filters['drive-time-sydney'] !== undefined) {
-            document.getElementById('drive-time-sydney').value = filters['drive-time-sydney'];
+        // Restore isochrone overlay dropdown (but don't trigger load yet)
+        if (filters['isochrone-overlay'] !== undefined) {
+            document.getElementById('isochrone-overlay').value = filters['isochrone-overlay'];
         }
     },
 

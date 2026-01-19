@@ -103,9 +103,9 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 		args = append(args, *f.DistanceSchoolMax)
 	}
 
-	// Drive time filter
+	// Drive time filter (uses pre-computed column on properties table)
 	if f.DriveTimeSydneyMax != nil {
-		query += " AND pd_sydney.drive_time_mins <= ?"
+		query += " AND p.drive_time_sydney <= ?"
 		args = append(args, *f.DriveTimeSydneyMax)
 	}
 
