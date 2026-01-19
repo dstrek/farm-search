@@ -8,8 +8,8 @@ Farm Search is a web application for discovering and filtering rural, farm, and 
 
 1. Display NSW rural/farm properties on an interactive map
 2. Allow filtering by price, property type, land size, and distance from key locations
-3. Show drive-time isochrones from Sydney (15-minute increments up to 2 hours)
-4. Aggregate listings from multiple real estate sources (REA, Domain, FarmBuy)
+3. Show drive-time isochrones from Sydney (15-minute increments up to 90 minutes)
+4. Aggregate listings from multiple real estate sources (FarmProperty, FarmBuy, REA)
 5. Display property boundary data from NSW cadastral sources (future)
 
 ## Tech Stack
@@ -50,7 +50,10 @@ internal/
 │   └── schools.go      # NSW schools data loader
 └── scraper/
     ├── scraper.go      # Scraper orchestration
+    ├── farmproperty.go # farmproperty.com.au scraper (primary)
+    ├── farmbuy.go      # farmbuy.com scraper
     ├── rea.go          # realestate.com.au scraper
+    ├── browser.go      # Headless Chrome browser for bot-protected sites
     └── geocoder.go     # Nominatim geocoding client
 ```
 
@@ -145,6 +148,17 @@ Reference table for NSW schools.
 | state | TEXT | State |
 | latitude | REAL | GPS latitude |
 | longitude | REAL | GPS longitude |
+
+### property_links
+
+Tracks duplicate properties across sources.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| canonical_id | INTEGER | FK to canonical property |
+| duplicate_id | INTEGER | FK to duplicate property (PK) |
+| match_type | TEXT | 'coords' or 'address' |
+| created_at | DATETIME | When link was created |
 
 ## API Endpoints
 
@@ -265,7 +279,7 @@ Manually trigger a scrape job.
 | Distance from Sydney | Range slider | 0-500km |
 | Distance from Town | Range slider | 0-100km |
 | Distance from School | Range slider | 0-50km |
-| Drive Time from Sydney | Dropdown | 15-120 min (15-min increments) |
+| Drive Time from Sydney | Dropdown | 15-90 min (15-min increments) |
 
 ### Property Modal
 
@@ -281,11 +295,12 @@ Displays full property details when "View Details" is clicked:
 
 ### Property Listings
 
-| Source | URL | Priority |
-|--------|-----|----------|
-| realestate.com.au | realestate.com.au/buy/property-rural-in-nsw | Primary |
+| Source | URL | Status |
+|--------|-----|--------|
+| FarmProperty | farmproperty.com.au | Implemented (primary, no bot protection) |
+| FarmBuy | farmbuy.com | Implemented (no bot protection) |
+| realestate.com.au | realestate.com.au/buy/property-rural-in-nsw | Implemented (requires headless browser) |
 | Domain | domain.com.au | Future |
-| FarmBuy | farmbuy.com | Future |
 
 **Scraping Approach:**
 1. Search listing pages by property type and region
@@ -306,8 +321,8 @@ Displays full property details when "View Details" is clicked:
 | Valhalla | valhalla1.openstreetmap.de | Driving time polygons |
 
 **Pre-generated Files:**
-- `sydney_15.geojson` through `sydney_120.geojson`
-- 15-minute increments
+- `sydney_15.geojson` through `sydney_90.geojson`
+- 15-minute increments (15, 30, 45, 60, 75, 90)
 - Stored in `web/static/data/isochrones/`
 
 ### Geographic Reference Data
@@ -345,7 +360,6 @@ make clean      # Remove build artifacts
 
 ### Phase 2: Additional Data Sources
 - Domain.com.au scraper
-- FarmBuy.com scraper
 - Automated daily scraping via cron
 
 ### Phase 3: Cadastral Data

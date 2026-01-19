@@ -25,7 +25,7 @@ farm-search/
 │   ├── db/              # Database connection, queries, schema
 │   ├── geo/             # Geographic calculations, isochrones, schools data
 │   ├── models/          # Domain types
-│   └── scraper/         # Property scrapers (FarmProperty, REA), geocoder
+│   └── scraper/         # Property scrapers (FarmProperty, FarmBuy, REA), geocoder, browser
 ├── web/
 │   ├── static/          # CSS, JS, and data files
 │   └── templates/       # HTML templates
@@ -81,8 +81,8 @@ curl http://localhost:8080/api/filters/options
 - **Nominatim**: Geocoding (free, rate-limited to 1 req/sec)
 - **Valhalla**: Isochrone generation (public OSM instance)
 - **FarmProperty.com.au**: Primary property listing source (no bot protection)
-- **FarmBuy.com**: Secondary property listing source (no bot protection)
-- **realestate.com.au**: Blocked by Kasada bot protection
+- **FarmBuy.com**: Secondary property listing source (implemented, no bot protection)
+- **realestate.com.au**: Requires headless browser (Kasada bot protection)
 
 ## Deployment
 
