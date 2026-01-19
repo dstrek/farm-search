@@ -65,5 +65,18 @@ const API = {
             return null; // Isochrone may not exist
         }
         return response.json();
+    },
+
+    // Fetch property boundaries (cadastral lots) within map bounds
+    async getBoundaries(bounds, zoom) {
+        let url = `${this.baseUrl}/boundaries?bounds=${bounds}`;
+        if (zoom !== undefined) {
+            url += `&zoom=${zoom}`;
+        }
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch boundaries: ${response.statusText}`);
+        }
+        return response.json();
     }
 };

@@ -35,6 +35,8 @@ func main() {
 		calculateNearestTowns()
 	case "towndrivetimes":
 		calculateTownDriveTimes()
+	case "cadastral":
+		fetchCadastralLots()
 	case "seed":
 		seedSampleData()
 	default:
@@ -52,6 +54,7 @@ func printUsage() {
 	fmt.Println("  drivetimes      Calculate drive times to Sutherland for all properties")
 	fmt.Println("  towns           Calculate nearest towns for all properties")
 	fmt.Println("  towndrivetimes  Calculate drive times to nearest towns for all properties")
+	fmt.Println("  cadastral       Fetch cadastral lot boundaries for properties")
 	fmt.Println("  seed            Seed database with sample data")
 }
 
@@ -499,4 +502,134 @@ func calculateNearestTowns() {
 	}
 
 	log.Println("Done!")
+}
+
+func fetchCadastralLots() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	all := flag.Bool("all", false, "Fetch lots for all properties, not just those without lots")
+	flag.Parse()
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// Create cadastral client
+	client := geo.NewCadastralClient()
+
+	// Get properties that need cadastral lots
+	var properties []struct {
+		ID        int64   `db:"id"`
+		Latitude  float64 `db:"latitude"`
+		Longitude float64 `db:"longitude"`
+		Address   string  `db:"address"`
+		Suburb    string  `db:"suburb"`
+	}
+
+	var query string
+	if *all {
+		query = `SELECT id, latitude, longitude, COALESCE(address, '') as address, COALESCE(suburb, '') as suburb 
+				 FROM properties WHERE latitude IS NOT NULL AND longitude IS NOT NULL`
+	} else {
+		query = `SELECT p.id, p.latitude, p.longitude, COALESCE(p.address, '') as address, COALESCE(p.suburb, '') as suburb 
+				 FROM properties p
+				 LEFT JOIN property_lots pl ON p.id = pl.property_id
+				 WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL 
+				 AND pl.property_id IS NULL`
+	}
+
+	err = database.Select(&properties, query)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No properties need cadastral lot lookup")
+		return
+	}
+
+	log.Printf("Fetching cadastral lots for %d properties...", len(properties))
+
+	success := 0
+	failed := 0
+	lotsFound := 0
+
+	for i, p := range properties {
+		// Fetch lots at the property's coordinates
+		lots, err := client.FetchLotsAtPoint(ctx, p.Longitude, p.Latitude)
+		if err != nil {
+			log.Printf("[%d/%d] Failed for property %d (%s): %v",
+				i+1, len(properties), p.ID, p.Suburb, err)
+			failed++
+			time.Sleep(500 * time.Millisecond) // Rate limiting
+			continue
+		}
+
+		if len(lots) == 0 {
+			log.Printf("[%d/%d] Property %d (%s): No lots found",
+				i+1, len(properties), p.ID, p.Suburb)
+			failed++
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		// Save each lot and link to property
+		for _, lot := range lots {
+			// Calculate centroid
+			centroidLat, centroidLng, err := geo.CalculateLotCentroid(lot.Geometry)
+			if err != nil {
+				log.Printf("  Warning: Could not calculate centroid for lot %s: %v", lot.LotIDString, err)
+				centroidLat, centroidLng = p.Latitude, p.Longitude // Use property coords as fallback
+			}
+
+			// Convert geometry to JSON string
+			geomJSON, err := geo.LotGeometryToJSON(lot.Geometry)
+			if err != nil {
+				log.Printf("  Warning: Could not serialize geometry for lot %s: %v", lot.LotIDString, err)
+				continue
+			}
+
+			// Save lot to database
+			lotID, err := database.SaveCadastralLot(
+				lot.LotIDString,
+				lot.LotNumber,
+				lot.PlanLabel,
+				lot.AreaSqm,
+				centroidLat,
+				centroidLng,
+				geomJSON,
+			)
+			if err != nil {
+				log.Printf("  Warning: Could not save lot %s: %v", lot.LotIDString, err)
+				continue
+			}
+
+			// Link property to lot
+			err = database.LinkPropertyToLot(p.ID, lotID)
+			if err != nil {
+				log.Printf("  Warning: Could not link property %d to lot %d: %v", p.ID, lotID, err)
+				continue
+			}
+
+			lotsFound++
+		}
+
+		location := p.Suburb
+		if p.Address != "" {
+			location = p.Address
+		}
+		log.Printf("[%d/%d] Property %d (%s): Found %d lots",
+			i+1, len(properties), p.ID, location, len(lots))
+
+		success++
+
+		// Rate limiting to avoid overloading NSW Spatial Services
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	totalLots, _ := database.GetCadastralLotCount()
+	log.Printf("Done! Properties: %d success, %d failed. Total lots in DB: %d", success, failed, totalLots)
 }

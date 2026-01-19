@@ -165,3 +165,90 @@ func (h *Handlers) TriggerScrape(w http.ResponseWriter, r *http.Request) {
 		"message": "Scrape job has been queued",
 	})
 }
+
+// GetBoundaries handles GET /api/boundaries
+// Returns cadastral lot boundaries as GeoJSON for properties within map bounds
+func (h *Handlers) GetBoundaries(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	// Parse bounds (required)
+	boundsStr := q.Get("bounds")
+	if boundsStr == "" {
+		http.Error(w, "bounds parameter required (sw_lat,sw_lng,ne_lat,ne_lng)", http.StatusBadRequest)
+		return
+	}
+
+	parts := strings.Split(boundsStr, ",")
+	if len(parts) != 4 {
+		http.Error(w, "bounds must have 4 values: sw_lat,sw_lng,ne_lat,ne_lng", http.StatusBadRequest)
+		return
+	}
+
+	swLat, err1 := strconv.ParseFloat(parts[0], 64)
+	swLng, err2 := strconv.ParseFloat(parts[1], 64)
+	neLat, err3 := strconv.ParseFloat(parts[2], 64)
+	neLng, err4 := strconv.ParseFloat(parts[3], 64)
+
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+		http.Error(w, "invalid bounds values", http.StatusBadRequest)
+		return
+	}
+
+	// Parse zoom level (optional)
+	zoom := 0.0
+	if v := q.Get("zoom"); v != "" {
+		zoom, _ = strconv.ParseFloat(v, 64)
+	}
+
+	// Add buffer to bounds only at high zoom levels (14+) to catch large properties
+	// whose centroid is just outside viewport when panning
+	if zoom >= 14 {
+		latSize := neLat - swLat
+		lngSize := neLng - swLng
+		buffer := latSize
+		if lngSize > buffer {
+			buffer = lngSize
+		}
+		buffer *= 2
+		swLat -= buffer
+		swLng -= buffer
+		neLat += buffer
+		neLng += buffer
+	}
+
+	lots, err := h.db.GetBoundariesInBounds(swLat, swLng, neLat, neLng)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build GeoJSON FeatureCollection
+	features := make([]map[string]interface{}, 0, len(lots))
+	for _, lot := range lots {
+		// Parse stored geometry JSON
+		var geometry interface{}
+		if err := json.Unmarshal([]byte(lot.Geometry), &geometry); err != nil {
+			continue // Skip lots with invalid geometry
+		}
+
+		feature := map[string]interface{}{
+			"type":     "Feature",
+			"geometry": geometry,
+			"properties": map[string]interface{}{
+				"lot_id":     lot.LotIDString,
+				"lot_number": lot.LotNumber,
+				"plan_label": lot.PlanLabel,
+				"area_sqm":   lot.AreaSqm,
+			},
+		}
+		features = append(features, feature)
+	}
+
+	geojson := map[string]interface{}{
+		"type":     "FeatureCollection",
+		"features": features,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(geojson)
+}

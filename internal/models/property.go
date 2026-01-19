@@ -80,6 +80,19 @@ type PropertySource struct {
 	URL    string `json:"url"`
 }
 
+// CadastralLot represents a land parcel from NSW DCDB
+type CadastralLot struct {
+	ID          int64   `db:"id" json:"id"`
+	LotIDString string  `db:"lot_id_string" json:"lot_id_string"` // e.g., "699//DP752033"
+	LotNumber   string  `db:"lot_number" json:"lot_number"`       // e.g., "699"
+	PlanLabel   string  `db:"plan_label" json:"plan_label"`       // e.g., "DP752033"
+	AreaSqm     float64 `db:"area_sqm" json:"area_sqm"`           // Area in square meters
+	Geometry    string  `db:"geometry" json:"geometry"`           // GeoJSON geometry
+	CentroidLat float64 `db:"centroid_lat" json:"centroid_lat"`
+	CentroidLng float64 `db:"centroid_lng" json:"centroid_lng"`
+	FetchedAt   string  `db:"fetched_at" json:"fetched_at"`
+}
+
 // PropertyDetail is the full property info for popup/modal
 type PropertyDetail struct {
 	ID               int64            `json:"id"`

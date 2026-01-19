@@ -78,6 +78,26 @@ CREATE TABLE IF NOT EXISTS property_links (
 
 CREATE INDEX IF NOT EXISTS idx_property_links_canonical ON property_links(canonical_id);
 
+-- Cadastral lots table (NSW DCDB lot boundaries)
+CREATE TABLE IF NOT EXISTS cadastral_lots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lot_id_string TEXT NOT NULL UNIQUE,  -- e.g., "699//DP752033"
+    lot_number TEXT,                      -- e.g., "699"
+    plan_label TEXT,                      -- e.g., "DP752033"
+    area_sqm REAL,                        -- Area in square meters
+    geometry TEXT NOT NULL,               -- GeoJSON geometry (Polygon)
+    centroid_lat REAL,                    -- Centroid latitude
+    centroid_lng REAL,                    -- Centroid longitude
+    fetched_at DATETIME NOT NULL
+);
+
+-- Link properties to cadastral lots (a property may span multiple lots)
+CREATE TABLE IF NOT EXISTS property_lots (
+    property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    lot_id INTEGER NOT NULL REFERENCES cadastral_lots(id) ON DELETE CASCADE,
+    PRIMARY KEY (property_id, lot_id)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_properties_coords ON properties(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_properties_price ON properties(price_min, price_max);
@@ -86,3 +106,5 @@ CREATE INDEX IF NOT EXISTS idx_distances_property ON property_distances(property
 CREATE INDEX IF NOT EXISTS idx_distances_type ON property_distances(target_type, target_name);
 CREATE INDEX IF NOT EXISTS idx_towns_coords ON towns(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_schools_coords ON schools(latitude, longitude);
+CREATE INDEX IF NOT EXISTS idx_cadastral_lots_coords ON cadastral_lots(centroid_lat, centroid_lng);
+CREATE INDEX IF NOT EXISTS idx_property_lots_lot ON property_lots(lot_id);

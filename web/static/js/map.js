@@ -12,7 +12,11 @@ const PropertyMap = {
     isochroneSourceId: 'isochrone-source',
     propertiesSourceId: 'properties-source',
     propertiesLayerId: 'properties-layer',
+    boundariesSourceId: 'boundaries-source',
+    boundariesLayerId: 'boundaries-layer',
     currentBaseLayer: 'streets',  // 'streets' or 'satellite'
+    boundariesMinZoom: 12,  // Minimum zoom level to show boundaries
+    boundariesLoading: false,  // Prevent concurrent boundary requests
 
     // Marker colours per source
     sourceColors: {
@@ -137,6 +141,37 @@ const PropertyMap = {
                 data: { type: 'FeatureCollection', features: [] }
             });
 
+            // Boundaries source (cadastral lot polygons)
+            this.map.addSource(this.boundariesSourceId, {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+
+            // Boundaries fill layer (semi-transparent)
+            this.map.addLayer({
+                id: this.boundariesLayerId,
+                type: 'fill',
+                source: this.boundariesSourceId,
+                minzoom: this.boundariesMinZoom,
+                paint: {
+                    'fill-color': '#22c55e',
+                    'fill-opacity': 0.15
+                }
+            });
+
+            // Boundaries outline layer
+            this.map.addLayer({
+                id: this.boundariesLayerId + '-outline',
+                type: 'line',
+                source: this.boundariesSourceId,
+                minzoom: this.boundariesMinZoom,
+                paint: {
+                    'line-color': '#16a34a',
+                    'line-width': 2,
+                    'line-opacity': 0.8
+                }
+            });
+
             // Properties circle layer - much faster than DOM markers
             this.map.addLayer({
                 id: this.propertiesLayerId,
@@ -150,12 +185,20 @@ const PropertyMap = {
                 }
             });
 
-            // Change cursor on hover
+            // Change cursor on hover for properties
             this.map.on('mouseenter', this.propertiesLayerId, () => {
                 this.map.getCanvas().style.cursor = 'pointer';
             });
             this.map.on('mouseleave', this.propertiesLayerId, () => {
                 this.map.getCanvas().style.cursor = '';
+            });
+
+            // Load boundaries when zoomed in and map moves
+            this.map.on('moveend', () => {
+                this.loadBoundariesIfNeeded();
+            });
+            this.map.on('zoomend', () => {
+                this.loadBoundariesIfNeeded();
             });
 
             // Click handler for property markers
@@ -325,5 +368,37 @@ const PropertyMap = {
             }
             this.currentBaseLayer = layer;
         });
+    },
+
+    // Load property boundaries when zoomed in enough
+    async loadBoundariesIfNeeded() {
+        const zoom = this.map.getZoom();
+        
+        // Clear boundaries if zoomed out
+        if (zoom < this.boundariesMinZoom) {
+            const source = this.map.getSource(this.boundariesSourceId);
+            if (source) {
+                source.setData({ type: 'FeatureCollection', features: [] });
+            }
+            return;
+        }
+
+        // Prevent concurrent requests
+        if (this.boundariesLoading) return;
+        this.boundariesLoading = true;
+
+        try {
+            const bounds = this.getBoundsString();
+            const geojson = await API.getBoundaries(bounds, zoom);
+            
+            const source = this.map.getSource(this.boundariesSourceId);
+            if (source && geojson) {
+                source.setData(geojson);
+            }
+        } catch (err) {
+            console.warn('Failed to load boundaries:', err);
+        } finally {
+            this.boundariesLoading = false;
+        }
     }
 };

@@ -85,8 +85,9 @@
 - [x] Store a list of towns (211 NSW towns in internal/geo/distance.go)
 - [x] Show distance to 2 nearest towns on each property (in modal)
 - [x] Change "distance from town" filter to "drive time to nearest town" filter
-- [ ] Research NSW Planning Portal for spatial data to get property boundaries
-- [ ] Render property boundaries on map after a certain zoom level
+- [x] Research NSW Planning Portal for spatial data to get property boundaries
+- [x] Fetch and store cadastral lot boundaries from NSW Spatial Services
+- [x] Render property boundaries on map after a certain zoom level
 
 ### Medium Priority
 - [ ] Add Domain.com.au scraper (may have bot protection)

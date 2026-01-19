@@ -10,7 +10,7 @@ Farm Search is a web application for discovering and filtering rural, farm, and 
 2. Allow filtering by price, property type, land size, and distance from key locations
 3. Show drive-time isochrones from Sydney (15-minute increments up to 90 minutes)
 4. Aggregate listings from multiple real estate sources (FarmProperty, FarmBuy, REA)
-5. Display property boundary data from NSW cadastral sources (future)
+5. Display property boundary data from NSW cadastral sources
 
 ## Tech Stack
 
@@ -160,6 +160,33 @@ Tracks duplicate properties across sources.
 | match_type | TEXT | 'coords' or 'address' |
 | created_at | DATETIME | When link was created |
 
+### cadastral_lots
+
+Stores cadastral lot boundaries from NSW Spatial Services.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key |
+| lot_id_string | TEXT | Unique lot identifier (e.g., "2//DP875844") |
+| lot_number | TEXT | Lot number (e.g., "2") |
+| plan_label | TEXT | Plan label (e.g., "DP875844") |
+| area_sqm | REAL | Area in square meters |
+| geometry | TEXT | GeoJSON Polygon geometry |
+| centroid_lat | REAL | Centroid latitude |
+| centroid_lng | REAL | Centroid longitude |
+| fetched_at | DATETIME | When data was fetched |
+
+### property_lots
+
+Links properties to cadastral lots (many-to-many).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| property_id | INTEGER | FK to properties |
+| lot_id | INTEGER | FK to cadastral_lots |
+
+**Primary Key**: (property_id, lot_id)
+
 ## API Endpoints
 
 ### GET /api/properties
@@ -257,6 +284,39 @@ Manually trigger a scrape job.
 }
 ```
 
+### GET /api/boundaries
+
+Get cadastral lot boundaries within map bounds.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| bounds | string | Map viewport: "sw_lat,sw_lng,ne_lat,ne_lng" (required) |
+| zoom | float | Current zoom level (optional, enables buffer at zoom >= 14) |
+
+**Response:**
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[lng, lat], ...]]
+      },
+      "properties": {
+        "lot_id": "2//DP875844",
+        "lot_number": "2",
+        "plan_label": "DP875844",
+        "area_sqm": 513241.86
+      }
+    }
+  ]
+}
+```
+
 ## Frontend Features
 
 ### Map Display
@@ -265,9 +325,10 @@ Manually trigger a scrape job.
 - **Tiles**: OpenStreetMap raster tiles
 - **Center**: NSW (-32.5, 147.0)
 - **Zoom**: 5.5 (shows all of NSW)
-- **Markers**: Blue circles for each property
+- **Markers**: Colored circles for each property (color by source)
 - **Popups**: Property summary on marker click
 - **Isochrone Layer**: Semi-transparent polygon overlay
+- **Boundary Layer**: Property cadastral boundaries (visible at zoom 12+)
 
 ### Filter Sidebar
 
@@ -331,7 +392,7 @@ Displays full property details when "View Details" is clicked:
 |------|--------|--------|
 | NSW Towns | Embedded in code | Go slice of Location structs |
 | NSW Schools | NSW Education Data Hub | CSV (cached locally) |
-| Cadastral (future) | NSW Spatial Services | WFS/WMS |
+| Cadastral | NSW Spatial Services | ArcGIS REST API |
 
 ## Configuration
 
@@ -362,10 +423,10 @@ make clean      # Remove build artifacts
 - Domain.com.au scraper
 - Automated daily scraping via cron
 
-### Phase 3: Cadastral Data
-- NSW DCDB property boundary integration
-- Display lot boundaries on property selection
-- Lot/DP number display
+### Phase 3: Cadastral Data (Implemented)
+- NSW DCDB property boundary integration via ArcGIS REST API
+- Display lot boundaries when zoomed in (zoom 12+)
+- Lot/DP number stored with properties
 
 ### Phase 4: Enhanced Filters
 - School type filter (primary/secondary)

@@ -43,6 +43,10 @@ make scrape       # Run property scraper
 make seed         # Seed sample data
 make deploy       # Build and deploy to production
 make setup-server # Initial server setup (run once)
+
+# Cadastral data
+go run cmd/tools/main.go cadastral        # Fetch lots for properties missing data
+go run cmd/tools/main.go cadastral -all   # Re-fetch lots for all properties
 ```
 
 ## Task Management
@@ -84,6 +88,7 @@ curl http://localhost:8080/api/filters/options
 
 - **Nominatim**: Geocoding (free, rate-limited to 1 req/sec)
 - **Valhalla**: Isochrone generation (local Docker instance or public OSM server)
+- **NSW Spatial Services**: Cadastral lot boundaries via ArcGIS REST API
 - **FarmProperty.com.au**: Primary property listing source (no bot protection)
 - **FarmBuy.com**: Secondary property listing source (implemented, no bot protection)
 - **realestate.com.au**: Requires headless browser (Kasada bot protection)

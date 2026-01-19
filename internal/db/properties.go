@@ -463,3 +463,111 @@ func (db *DB) GetPropertiesWithoutDriveTime() ([]models.PropertyListItem, error)
 	err := db.Select(&properties, query)
 	return properties, err
 }
+
+// SaveCadastralLot inserts or updates a cadastral lot
+func (db *DB) SaveCadastralLot(lotIDString, lotNumber, planLabel string, areaSqm, centroidLat, centroidLng float64, geometry string) (int64, error) {
+	query := `
+		INSERT INTO cadastral_lots (lot_id_string, lot_number, plan_label, area_sqm, geometry, centroid_lat, centroid_lng, fetched_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(lot_id_string) DO UPDATE SET
+			lot_number = excluded.lot_number,
+			plan_label = excluded.plan_label,
+			area_sqm = excluded.area_sqm,
+			geometry = excluded.geometry,
+			centroid_lat = excluded.centroid_lat,
+			centroid_lng = excluded.centroid_lng,
+			fetched_at = excluded.fetched_at
+		RETURNING id
+	`
+
+	var id int64
+	err := db.Get(&id, query, lotIDString, lotNumber, planLabel, areaSqm, geometry, centroidLat, centroidLng)
+	if err != nil {
+		return 0, fmt.Errorf("failed to save cadastral lot: %w", err)
+	}
+	return id, nil
+}
+
+// GetCadastralLotByID returns a cadastral lot by its lot_id_string
+func (db *DB) GetCadastralLotByID(lotIDString string) (*models.CadastralLot, error) {
+	var lot models.CadastralLot
+	err := db.Get(&lot, "SELECT * FROM cadastral_lots WHERE lot_id_string = ?", lotIDString)
+	if err != nil {
+		return nil, err
+	}
+	return &lot, nil
+}
+
+// LinkPropertyToLot creates a link between a property and a cadastral lot
+func (db *DB) LinkPropertyToLot(propertyID, lotID int64) error {
+	_, err := db.Exec(`
+		INSERT OR IGNORE INTO property_lots (property_id, lot_id)
+		VALUES (?, ?)
+	`, propertyID, lotID)
+	return err
+}
+
+// GetPropertyLots returns all cadastral lots linked to a property
+func (db *DB) GetPropertyLots(propertyID int64) ([]models.CadastralLot, error) {
+	query := `
+		SELECT cl.* FROM cadastral_lots cl
+		JOIN property_lots pl ON cl.id = pl.lot_id
+		WHERE pl.property_id = ?
+	`
+	var lots []models.CadastralLot
+	err := db.Select(&lots, query, propertyID)
+	return lots, err
+}
+
+// GetPropertiesWithoutLots returns properties that don't have cadastral lots linked
+func (db *DB) GetPropertiesWithoutLots() ([]models.PropertyListItem, error) {
+	query := `
+		SELECT 
+			p.id,
+			p.latitude,
+			p.longitude,
+			COALESCE(p.price_text, '') as price_text,
+			COALESCE(p.property_type, '') as property_type,
+			COALESCE(p.address, '') as address,
+			COALESCE(p.suburb, '') as suburb,
+			p.source
+		FROM properties p
+		LEFT JOIN property_lots pl ON p.id = pl.property_id
+		WHERE p.latitude IS NOT NULL 
+			AND p.longitude IS NOT NULL 
+			AND pl.property_id IS NULL
+	`
+	var properties []models.PropertyListItem
+	err := db.Select(&properties, query)
+	return properties, err
+}
+
+// GetCadastralLotCount returns total number of cadastral lots
+func (db *DB) GetCadastralLotCount() (int, error) {
+	var count int
+	err := db.Get(&count, "SELECT COUNT(*) FROM cadastral_lots")
+	return count, err
+}
+
+// GetBoundariesInBounds returns cadastral lot boundaries for properties within the given map bounds
+// Returns a list of lots with their geometry (GeoJSON) and associated property IDs
+// Checks both property coordinates and lot centroid to ensure boundaries show when zoomed in
+func (db *DB) GetBoundariesInBounds(swLat, swLng, neLat, neLng float64) ([]models.CadastralLot, error) {
+	query := `
+		SELECT DISTINCT cl.id, cl.lot_id_string, cl.lot_number, cl.plan_label, 
+			   cl.area_sqm, cl.geometry, cl.centroid_lat, cl.centroid_lng, cl.fetched_at
+		FROM cadastral_lots cl
+		JOIN property_lots pl ON cl.id = pl.lot_id
+		JOIN properties p ON pl.property_id = p.id
+		LEFT JOIN property_links plink ON p.id = plink.duplicate_id
+		WHERE plink.duplicate_id IS NULL
+		  AND (
+		    (p.latitude BETWEEN ? AND ? AND p.longitude BETWEEN ? AND ?)
+		    OR (cl.centroid_lat BETWEEN ? AND ? AND cl.centroid_lng BETWEEN ? AND ?)
+		  )
+		LIMIT 500
+	`
+	var lots []models.CadastralLot
+	err := db.Select(&lots, query, swLat, neLat, swLng, neLng, swLat, neLat, swLng, neLng)
+	return lots, err
+}
