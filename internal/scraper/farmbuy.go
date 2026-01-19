@@ -47,8 +47,8 @@ type farmBuyListing struct {
 		Postcode string `json:"postcode"`
 		Suburb   string `json:"suburb"`
 	} `json:"address"`
-	Types            []string `json:"types"`
-	MainTileImageURL string   `json:"mainTileImageURL"`
+	Types            []string    `json:"types"`
+	MainTileImageURL interface{} `json:"mainTileImageURL"` // Can be string or bool
 	Meta             struct {
 		Bed  string `json:"bed"`
 		Bath string `json:"bath"`
@@ -91,10 +91,10 @@ func (s *FarmBuyScraper) ScrapeListings(ctx context.Context, state string, maxPa
 
 func (s *FarmBuyScraper) scrapePage(ctx context.Context, state string, page int) ([]models.Property, bool, error) {
 	// Build the search URL
-	// FarmBuy uses /state/nsw for first page, /state/nsw/page/2 for subsequent
-	searchURL := fmt.Sprintf("%s/state/%s", s.baseURL, strings.ToLower(state))
+	// FarmBuy uses query parameters: sort=datedesc for most recent, page=N for pagination
+	searchURL := fmt.Sprintf("%s/state/%s?sort=datedesc", s.baseURL, strings.ToLower(state))
 	if page > 1 {
-		searchURL = fmt.Sprintf("%s/page/%d", searchURL, page)
+		searchURL = fmt.Sprintf("%s&page=%d", searchURL, page)
 	}
 
 	body, err := s.fetch(ctx, searchURL)
@@ -144,8 +144,8 @@ func (s *FarmBuyScraper) scrapePage(ctx context.Context, state string, page int)
 		s.enrichWithCoordinates(body, listings)
 	}
 
-	// Check if there are more pages
-	hasMore := strings.Contains(body, fmt.Sprintf("/page/%d", page+1)) ||
+	// Check if there are more pages (pagination uses query params: ?page=N)
+	hasMore := strings.Contains(body, fmt.Sprintf("page=%d", page+1)) ||
 		strings.Contains(body, `rel="next"`)
 
 	return listings, hasMore, nil
@@ -212,9 +212,9 @@ func (s *FarmBuyScraper) convertListing(data *farmBuyListing) *models.Property {
 		}
 	}
 
-	// Image
-	if data.MainTileImageURL != "" {
-		images := []string{data.MainTileImageURL}
+	// Image (can be string or bool)
+	if imgURL, ok := data.MainTileImageURL.(string); ok && imgURL != "" {
+		images := []string{imgURL}
 		imgJSON, _ := json.Marshal(images)
 		listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
 	}

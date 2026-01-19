@@ -114,12 +114,10 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 		args = append(args, *f.SWLat, *f.NELat, *f.SWLng, *f.NELng)
 	}
 
-	// Apply limit
-	limit := f.Limit
-	if limit <= 0 {
-		limit = 100
+	// Apply limit only if specified
+	if f.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", f.Limit)
 	}
-	query += fmt.Sprintf(" LIMIT %d", limit)
 
 	if f.Offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", f.Offset)

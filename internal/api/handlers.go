@@ -23,10 +23,8 @@ func NewHandlers(database *db.DB) *Handlers {
 // ListProperties handles GET /api/properties
 func (h *Handlers) ListProperties(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	
-	filter := db.PropertyFilter{
-		Limit: 100,
-	}
+
+	filter := db.PropertyFilter{}
 
 	// Parse price filters
 	if v := q.Get("price_min"); v != "" {

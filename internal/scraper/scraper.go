@@ -38,9 +38,10 @@ func DefaultConfig() Config {
 		Regions: []string{
 			"nsw",
 		},
-		UseBrowser: false,          // Default to HTTP (FarmProperty doesn't need browser)
-		Headless:   true,           // Run headless by default
-		Source:     "farmproperty", // Default to FarmProperty (no bot protection)
+		UseBrowser:  false,          // Default to HTTP (FarmProperty doesn't need browser)
+		Headless:    true,           // Run headless by default
+		Source:      "farmproperty", // Default to FarmProperty (no bot protection)
+		SkipGeocode: true,           // Skip geocoding by default (run separately)
 	}
 }
 
