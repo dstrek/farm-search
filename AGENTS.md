@@ -8,8 +8,9 @@ Farm Search is a web application for discovering rural and farm properties for s
 
 - **Backend**: Go 1.24+ with Chi router and sqlx for SQLite
 - **Frontend**: Vanilla JavaScript with MapLibre GL JS
-- **Database**: SQLite
+- **Database**: SQLite (using modernc.org/sqlite pure Go driver)
 - **Build**: Make, Air (live reload)
+- **Deployment**: systemd service behind Caddy reverse proxy
 
 ## Project Structure
 
@@ -35,11 +36,13 @@ farm-search/
 ## Key Commands
 
 ```bash
-make setup      # Install deps and seed sample data
-make run        # Start server with live reload (air)
-make build      # Build production binaries
-make scrape     # Run property scraper
-make seed       # Seed sample data
+make setup        # Install deps and seed sample data
+make run          # Start server with live reload (air)
+make build        # Build production binaries
+make scrape       # Run property scraper
+make seed         # Seed sample data
+make deploy       # Build and deploy to production
+make setup-server # Initial server setup (run once)
 ```
 
 ## Development Guidelines
@@ -78,6 +81,38 @@ curl http://localhost:8080/api/filters/options
 - **Nominatim**: Geocoding (free, rate-limited to 1 req/sec)
 - **Valhalla**: Isochrone generation (public OSM instance)
 - **realestate.com.au**: Property listing source (scraping)
+
+## Deployment
+
+**Production URL**: https://farms.dstrek.com
+
+**Server**: 107.191.56.246 (Ubuntu 25.10)
+
+### Initial Setup (run once)
+```bash
+make setup-server
+```
+
+This installs Caddy, creates the systemd service, and configures automatic HTTPS.
+
+### Deploy Updates
+```bash
+make deploy
+```
+
+This builds for Linux, uploads binaries and static files, and restarts the service.
+
+### Service Management
+```bash
+ssh root@107.191.56.246 'systemctl status farm-search'   # Check status
+ssh root@107.191.56.246 'systemctl restart farm-search'  # Restart app
+ssh root@107.191.56.246 'journalctl -u farm-search -f'   # View logs
+```
+
+### Crash Protection
+The systemd service is configured to restart automatically:
+- Restarts after 5 seconds on failure
+- Up to 10 restarts within 5 minutes before stopping
 
 ## Important Notes
 

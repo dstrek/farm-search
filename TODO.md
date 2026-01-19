@@ -52,6 +52,15 @@
 - [x] Write AGENTS.md
 - [x] Write SPEC.md
 
+### Deployment
+- [x] Create server setup script (Caddy, systemd service)
+- [x] Create deploy script (build, upload, restart)
+- [x] Add Makefile deploy targets
+- [x] Switch to pure Go SQLite driver (modernc.org/sqlite)
+- [x] Deploy to production (farms.dstrek.com)
+- [x] Configure automatic HTTPS via Let's Encrypt
+- [x] Configure crash protection (systemd restart policy)
+
 ---
 
 ## In Progress
@@ -127,6 +136,9 @@
 - [ ] Add API response compression
 
 ### DevOps
+- [x] Create production deployment scripts
+- [x] Set up systemd service with crash protection
+- [x] Configure Caddy reverse proxy with auto-HTTPS
 - [ ] Add Dockerfile
 - [ ] Add docker-compose.yml
 - [ ] Set up GitHub Actions CI

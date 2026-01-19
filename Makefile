@@ -1,4 +1,4 @@
-.PHONY: run build scrape migrate clean help seed isochrones distances
+.PHONY: run build scrape migrate clean help seed isochrones distances deploy setup-server
 
 # Default target
 help:
@@ -65,3 +65,11 @@ run-simple:
 # Full setup: deps + seed (seed creates DB)
 setup: deps seed
 	@echo "Setup complete! Run 'make run' to start the server."
+
+# Deploy to production server
+deploy:
+	@./scripts/deploy.sh
+
+# Initial server setup (run once on fresh server)
+setup-server:
+	@ssh root@107.191.56.246 'bash -s' < scripts/setup-server.sh
