@@ -20,6 +20,9 @@ func main() {
 	maxPages := flag.Int("pages", 5, "Maximum pages to scrape per property type")
 	workers := flag.Int("workers", 3, "Number of concurrent workers")
 	delay := flag.Duration("delay", 2*time.Second, "Delay between requests")
+	source := flag.String("source", "farmproperty", "Source to scrape: farmproperty, rea, or all")
+	useBrowser := flag.Bool("browser", false, "Use headless browser (only needed for REA)")
+	headless := flag.Bool("headless", true, "Run browser in headless mode (set false to see browser)")
 	flag.Parse()
 
 	// Determine database path
@@ -43,6 +46,9 @@ func main() {
 	config.MaxPages = *maxPages
 	config.Workers = *workers
 	config.DelayBetween = *delay
+	config.Source = *source
+	config.UseBrowser = *useBrowser
+	config.Headless = *headless
 
 	// Create scraper
 	s := scraper.New(database, config)

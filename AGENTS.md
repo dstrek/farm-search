@@ -25,7 +25,7 @@ farm-search/
 │   ├── db/              # Database connection, queries, schema
 │   ├── geo/             # Geographic calculations, isochrones, schools data
 │   ├── models/          # Domain types
-│   └── scraper/         # REA scraper, geocoder
+│   └── scraper/         # Property scrapers (FarmProperty, REA), geocoder
 ├── web/
 │   ├── static/          # CSS, JS, and data files
 │   └── templates/       # HTML templates
@@ -80,7 +80,8 @@ curl http://localhost:8080/api/filters/options
 
 - **Nominatim**: Geocoding (free, rate-limited to 1 req/sec)
 - **Valhalla**: Isochrone generation (public OSM instance)
-- **realestate.com.au**: Property listing source (scraping)
+- **FarmProperty.com.au**: Primary property listing source (no bot protection)
+- **realestate.com.au**: Secondary source (blocked by Kasada bot protection)
 
 ## Deployment
 
@@ -117,6 +118,5 @@ The systemd service is configured to restart automatically:
 ## Important Notes
 
 - Respect rate limits when scraping or geocoding
-- Sample data uses `source = 'sample'` to distinguish from real listings
 - Isochrone GeoJSON files stored in `web/static/data/isochrones/`
 - Distance calculations use Haversine formula (straight-line, not driving)

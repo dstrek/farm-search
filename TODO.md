@@ -61,11 +61,17 @@
 - [x] Configure automatic HTTPS via Let's Encrypt
 - [x] Configure crash protection (systemd restart policy)
 
+### Scraper Enhancements
+- [x] Test scraper against live REA website (blocked by Kasada bot protection)
+- [x] Add browser automation support (chromedp) for bot-protected sites
+- [x] Add FarmProperty.com.au scraper (no bot protection, works great)
+- [x] Scrape real property data from FarmProperty.com.au
+- [x] Add .air.toml configuration for live reload
+
 ---
 
 ## In Progress
 
-- [ ] Test scraper against live REA website
 - [ ] Generate actual Sydney isochrone GeoJSON files
 
 ---
@@ -73,7 +79,6 @@
 ## Backlog
 
 ### High Priority
-- [ ] Run scraper and populate real property data
 - [ ] Generate isochrone files for Sydney (15-120 min)
 - [ ] Calculate distances for all scraped properties
 - [ ] Add map marker clustering for large datasets
@@ -81,7 +86,6 @@
 
 ### Medium Priority
 - [ ] Add Domain.com.au scraper
-- [ ] Add FarmBuy.com scraper
 - [ ] Implement scheduled daily scraping (cron)
 - [ ] Add property count badge on map
 - [ ] Improve mobile responsive layout
@@ -150,6 +154,8 @@
 ## Notes
 
 ### Scraping Observations
+- **REA (realestate.com.au)**: Uses Kasada bot protection, blocks both HTTP requests and headless browsers
+- **FarmProperty.com.au**: No bot protection, works with simple HTTP requests, has JSON-LD structured data with coordinates
 - REA embeds JSON data in `window.ArgonautExchange` on listing pages
 - Listing URLs contain property type, suburb, postcode, and listing ID
 - Some listings don't have coordinates; need geocoding fallback
