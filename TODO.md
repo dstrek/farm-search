@@ -65,7 +65,8 @@
 - [x] Test scraper against live REA website (blocked by Kasada bot protection)
 - [x] Add browser automation support (chromedp) for bot-protected sites
 - [x] Add FarmProperty.com.au scraper (no bot protection, works great)
-- [x] Scrape real property data from FarmProperty.com.au
+- [x] Add FarmBuy.com scraper (extracts embedded JSON + map coordinates)
+- [x] Scrape real property data from FarmProperty.com.au and FarmBuy.com
 - [x] Add .air.toml configuration for live reload
 
 ---
@@ -85,7 +86,7 @@
 - [ ] Add loading indicators for API calls
 
 ### Medium Priority
-- [ ] Add Domain.com.au scraper
+- [ ] Add Domain.com.au scraper (may have bot protection)
 - [ ] Implement scheduled daily scraping (cron)
 - [ ] Add property count badge on map
 - [ ] Improve mobile responsive layout
@@ -156,6 +157,7 @@
 ### Scraping Observations
 - **REA (realestate.com.au)**: Uses Kasada bot protection, blocks both HTTP requests and headless browsers
 - **FarmProperty.com.au**: No bot protection, works with simple HTTP requests, has JSON-LD structured data with coordinates
+- **FarmBuy.com**: No bot protection, has embedded JSON in listing tiles + coordinates in map markers
 - REA embeds JSON data in `window.ArgonautExchange` on listing pages
 - Listing URLs contain property type, suburb, postcode, and listing ID
 - Some listings don't have coordinates; need geocoding fallback

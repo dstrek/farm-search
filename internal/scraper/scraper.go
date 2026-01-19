@@ -20,7 +20,8 @@ type Config struct {
 	Regions       []string
 	UseBrowser    bool   // Use headless browser to bypass bot protection
 	Headless      bool   // Run browser in headless mode (no visible window)
-	Source        string // Which source to scrape: "rea", "farmproperty", or "all"
+	Source        string // Which source to scrape: "rea", "farmproperty", "farmbuy", or "all"
+	SkipGeocode   bool   // Skip geocoding for properties without coordinates
 }
 
 // DefaultConfig returns default scraper settings
@@ -50,6 +51,7 @@ type Scraper struct {
 	rea          *REAScraper
 	browser      *BrowserScraper
 	farmProperty *FarmPropertyScraper
+	farmBuy      *FarmBuyScraper
 	geo          *Geocoder
 }
 
@@ -60,6 +62,7 @@ func New(database *db.DB, config Config) *Scraper {
 		config:       config,
 		rea:          NewREAScraper(),
 		farmProperty: NewFarmPropertyScraper(),
+		farmBuy:      NewFarmBuyScraper(),
 		geo:          NewGeocoder(),
 	}
 
@@ -113,6 +116,32 @@ func (s *Scraper) Run(ctx context.Context) error {
 		}
 	}
 
+	// Scrape FarmBuy if selected
+	if s.config.Source == "farmbuy" || s.config.Source == "all" {
+		for _, region := range s.config.Regions {
+			log.Printf("Scraping FarmBuy for %s...", region)
+
+			listings, err := s.farmBuy.ScrapeListings(ctx, region, s.config.MaxPages)
+			if err != nil {
+				log.Printf("Error scraping FarmBuy %s: %v", region, err)
+				continue
+			}
+
+			mu.Lock()
+			allListings = append(allListings, listings...)
+			mu.Unlock()
+
+			log.Printf("Found %d listings from FarmBuy for %s", len(listings), region)
+
+			// Respect rate limits
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(s.config.DelayBetween):
+			}
+		}
+	}
+
 	// Scrape REA if selected
 	if s.config.Source == "rea" || s.config.Source == "all" {
 		for _, propType := range s.config.PropertyTypes {
@@ -154,34 +183,44 @@ func (s *Scraper) Run(ctx context.Context) error {
 
 	log.Printf("Total listings found: %d", len(allListings))
 
-	// Geocode listings that don't have coordinates
+	// Geocode listings that don't have coordinates (unless skipped)
 	geocoded := 0
-	for i := range allListings {
-		if !allListings[i].Latitude.Valid || !allListings[i].Longitude.Valid {
-			addr := formatAddress(&allListings[i])
-			if addr != "" {
-				lat, lng, err := s.geo.Geocode(ctx, addr)
-				if err != nil {
-					log.Printf("Geocoding failed for %s: %v", addr, err)
-				} else {
-					allListings[i].Latitude.Float64 = lat
-					allListings[i].Latitude.Valid = true
-					allListings[i].Longitude.Float64 = lng
-					allListings[i].Longitude.Valid = true
-					geocoded++
-				}
+	if !s.config.SkipGeocode {
+		for i := range allListings {
+			if !allListings[i].Latitude.Valid || !allListings[i].Longitude.Valid {
+				addr := formatAddress(&allListings[i])
+				if addr != "" {
+					lat, lng, err := s.geo.Geocode(ctx, addr)
+					if err != nil {
+						log.Printf("Geocoding failed for %s: %v", addr, err)
+					} else {
+						allListings[i].Latitude.Float64 = lat
+						allListings[i].Latitude.Valid = true
+						allListings[i].Longitude.Float64 = lng
+						allListings[i].Longitude.Valid = true
+						geocoded++
+					}
 
-				// Rate limit geocoding
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(1 * time.Second):
+					// Rate limit geocoding
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case <-time.After(1 * time.Second):
+					}
 				}
 			}
 		}
+		log.Printf("Geocoded %d listings", geocoded)
+	} else {
+		// Count how many are missing coordinates
+		missing := 0
+		for _, l := range allListings {
+			if !l.Latitude.Valid || !l.Longitude.Valid {
+				missing++
+			}
+		}
+		log.Printf("Skipped geocoding (%d listings without coordinates)", missing)
 	}
-
-	log.Printf("Geocoded %d listings", geocoded)
 
 	// Save to database
 	saved, err := s.saveListings(allListings)

@@ -81,7 +81,8 @@ curl http://localhost:8080/api/filters/options
 - **Nominatim**: Geocoding (free, rate-limited to 1 req/sec)
 - **Valhalla**: Isochrone generation (public OSM instance)
 - **FarmProperty.com.au**: Primary property listing source (no bot protection)
-- **realestate.com.au**: Secondary source (blocked by Kasada bot protection)
+- **FarmBuy.com**: Secondary property listing source (no bot protection)
+- **realestate.com.au**: Blocked by Kasada bot protection
 
 ## Deployment
 

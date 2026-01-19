@@ -20,7 +20,8 @@ func main() {
 	maxPages := flag.Int("pages", 5, "Maximum pages to scrape per property type")
 	workers := flag.Int("workers", 3, "Number of concurrent workers")
 	delay := flag.Duration("delay", 2*time.Second, "Delay between requests")
-	source := flag.String("source", "farmproperty", "Source to scrape: farmproperty, rea, or all")
+	source := flag.String("source", "farmproperty", "Source to scrape: farmproperty, farmbuy, rea, or all")
+	skipGeocode := flag.Bool("skip-geocode", false, "Skip geocoding for properties without coordinates")
 	useBrowser := flag.Bool("browser", false, "Use headless browser (only needed for REA)")
 	headless := flag.Bool("headless", true, "Run browser in headless mode (set false to see browser)")
 	flag.Parse()
@@ -47,6 +48,7 @@ func main() {
 	config.Workers = *workers
 	config.DelayBetween = *delay
 	config.Source = *source
+	config.SkipGeocode = *skipGeocode
 	config.UseBrowser = *useBrowser
 	config.Headless = *headless
 
