@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Farm Search - NSW Property Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app">
+        <aside id="sidebar">
+            <div class="sidebar-header">
+                <h1>Farm Search</h1>
+                <p>NSW Property Map</p>
+            </div>
+            
+            <div class="filters">
+                <h2>Filters</h2>
+                
+                <div class="filter-group">
+                    <label>Price Range</label>
+                    <div class="range-inputs">
+                        <input type="number" id="price-min" placeholder="Min $">
+                        <span>to</span>
+                        <input type="number" id="price-max" placeholder="Max $">
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label>Property Type</label>
+                    <div id="property-types" class="checkbox-group">
+                        <label><input type="checkbox" value="house"> House</label>
+                        <label><input type="checkbox" value="land"> Land</label>
+                        <label><input type="checkbox" value="farm"> Farm</label>
+                        <label><input type="checkbox" value="rural"> Rural</label>
+                        <label><input type="checkbox" value="acreage"> Acreage</label>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label>Land Size (sqm)</label>
+                    <div class="range-inputs">
+                        <input type="number" id="land-size-min" placeholder="Min">
+                        <span>to</span>
+                        <input type="number" id="land-size-max" placeholder="Max">
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <label for="distance-sydney">Distance from Sydney (km)</label>
+                    <input type="range" id="distance-sydney" min="0" max="500" value="500">
+                    <span id="distance-sydney-value">Any</span>
+                </div>
+
+                <div class="filter-group">
+                    <label for="distance-town">Distance from nearest town (km)</label>
+                    <input type="range" id="distance-town" min="0" max="100" value="100">
+                    <span id="distance-town-value">Any</span>
+                </div>
+
+                <div class="filter-group">
+                    <label for="distance-school">Distance from nearest school (km)</label>
+                    <input type="range" id="distance-school" min="0" max="50" value="50">
+                    <span id="distance-school-value">Any</span>
+                </div>
+
+                <div class="filter-group">
+                    <label for="drive-time-sydney">Drive time from Sydney</label>
+                    <select id="drive-time-sydney">
+                        <option value="">Any</option>
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="45">45 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="75">1 hr 15 min</option>
+                        <option value="90">1 hr 30 min</option>
+                        <option value="105">1 hr 45 min</option>
+                        <option value="120">2 hours</option>
+                    </select>
+                </div>
+
+                <div class="filter-actions">
+                    <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
+                    <button id="clear-filters" class="btn btn-secondary">Clear</button>
+                </div>
+            </div>
+
+            <div class="results-info">
+                <span id="results-count">0</span> properties found
+            </div>
+        </aside>
+
+        <main id="map-container">
+            <div id="map"></div>
+        </main>
+
+        <!-- Property Detail Modal -->
+        <div id="property-modal" class="modal hidden">
+            <div class="modal-content">
+                <button class="modal-close">&times;</button>
+                <div id="property-detail"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/map.js"></script>
+    <script src="/static/js/filters.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
