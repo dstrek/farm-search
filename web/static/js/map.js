@@ -2,14 +2,16 @@
 
 const PropertyMap = {
     map: null,
-    markers: [],
     popup: null,
     properties: [],  // Store properties for click lookups
-    onMarkerClickCallback: null,
+    propertiesById: new Map(),  // Quick lookup by ID
+    onViewDetailsCallback: null,
     ready: false,     // Track if map is fully initialized
     readyCallbacks: [], // Callbacks to run when ready
     isochroneLayerId: 'isochrone-layer',
     isochroneSourceId: 'isochrone-source',
+    propertiesSourceId: 'properties-source',
+    propertiesLayerId: 'properties-layer',
 
     // Marker colours per source
     sourceColors: {
@@ -110,6 +112,45 @@ const PropertyMap = {
                 }
             });
 
+            // Properties source (GeoJSON for GPU-rendered markers)
+            this.map.addSource(this.propertiesSourceId, {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+
+            // Properties circle layer - much faster than DOM markers
+            this.map.addLayer({
+                id: this.propertiesLayerId,
+                type: 'circle',
+                source: this.propertiesSourceId,
+                paint: {
+                    'circle-radius': 8,
+                    'circle-color': ['get', 'color'],
+                    'circle-stroke-color': '#ffffff',
+                    'circle-stroke-width': 2
+                }
+            });
+
+            // Change cursor on hover
+            this.map.on('mouseenter', this.propertiesLayerId, () => {
+                this.map.getCanvas().style.cursor = 'pointer';
+            });
+            this.map.on('mouseleave', this.propertiesLayerId, () => {
+                this.map.getCanvas().style.cursor = '';
+            });
+
+            // Click handler for property markers
+            this.map.on('click', this.propertiesLayerId, (e) => {
+                if (e.features && e.features.length > 0) {
+                    const feature = e.features[0];
+                    const propertyId = feature.properties.id;
+                    const property = this.propertiesById.get(propertyId);
+                    if (property) {
+                        this.showPropertyPopup(property);
+                    }
+                }
+            });
+
             // Mark as ready and run callbacks
             this.ready = true;
             this.readyCallbacks.forEach(cb => cb());
@@ -128,52 +169,48 @@ const PropertyMap = {
         }
     },
 
-    // Clear all markers
-    clearMarkers() {
-        this.markers.forEach(marker => marker.remove());
-        this.markers = [];
-    },
-
-    // Add property markers to the map
-    addPropertyMarkers(properties, onMarkerClick) {
-        this.clearMarkers();
+    // Add property markers to the map using GeoJSON source
+    addPropertyMarkers(properties, onViewDetails) {
         this.properties = properties;
+        this.propertiesById.clear();
+        this.onViewDetailsCallback = onViewDetails;
 
+        // Build GeoJSON features
+        const features = [];
         properties.forEach(property => {
             if (!property.lat || !property.lng) return;
 
-            // Get colour based on source
-            const color = this.getSourceColor(property.source);
+            this.propertiesById.set(property.id, property);
 
-            // Create marker element
-            const el = document.createElement('div');
-            el.className = 'property-marker';
-            el.style.cssText = `
-                width: 24px;
-                height: 24px;
-                background: ${color};
-                border: 2px solid white;
-                border-radius: 50%;
-                cursor: pointer;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-            `;
-
-            const marker = new maplibregl.Marker({ element: el })
-                .setLngLat([property.lng, property.lat])
-                .addTo(this.map);
-
-            // Add click handler
-            el.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.showPropertyPopup(property, onMarkerClick);
+            features.push({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [property.lng, property.lat]
+                },
+                properties: {
+                    id: property.id,
+                    color: this.getSourceColor(property.source)
+                }
             });
+        });
 
-            this.markers.push(marker);
+        const geojson = {
+            type: 'FeatureCollection',
+            features: features
+        };
+
+        // Wait for map to be ready before updating source
+        this.onReady(() => {
+            const source = this.map.getSource(this.propertiesSourceId);
+            if (source) {
+                source.setData(geojson);
+            }
         });
     },
 
     // Show popup for a property
-    showPropertyPopup(property, onViewDetails) {
+    showPropertyPopup(property) {
         const html = `
             <div class="popup-content">
                 <h3>${property.address || property.suburb || 'Property'}</h3>
@@ -194,9 +231,9 @@ const PropertyMap = {
         // Add click handler for view details button
         setTimeout(() => {
             const btn = document.querySelector('.popup-content .view-btn');
-            if (btn) {
+            if (btn && this.onViewDetailsCallback) {
                 btn.addEventListener('click', () => {
-                    onViewDetails(property.id);
+                    this.onViewDetailsCallback(property.id);
                 });
             }
         }, 0);
