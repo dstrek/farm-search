@@ -70,6 +70,7 @@ type PropertyListItem struct {
 	PropertyType string  `db:"property_type" json:"property_type"`
 	Address      string  `db:"address" json:"address"`
 	Suburb       string  `db:"suburb" json:"suburb"`
+	Source       string  `db:"source" json:"source"`
 }
 
 // PropertySource represents a listing source for a property

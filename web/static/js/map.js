@@ -4,8 +4,25 @@ const PropertyMap = {
     map: null,
     markers: [],
     popup: null,
+    properties: [],  // Store properties for click lookups
+    onMarkerClickCallback: null,
+    ready: false,     // Track if map is fully initialized
+    readyCallbacks: [], // Callbacks to run when ready
     isochroneLayerId: 'isochrone-layer',
     isochroneSourceId: 'isochrone-source',
+
+    // Marker colours per source
+    sourceColors: {
+        'farmproperty': '#f97316',  // Orange
+        'farmbuy': '#22c55e',       // Green
+        'rea': '#ef4444',           // Red
+        'domain': '#8b5cf6',        // Purple
+        'default': '#2563eb'        // Blue
+    },
+
+    getSourceColor(source) {
+        return this.sourceColors[source] || this.sourceColors.default;
+    },
 
     // NSW bounds (approximately)
     NSW_BOUNDS: {
@@ -63,8 +80,9 @@ const PropertyMap = {
             maxWidth: '300px'
         });
 
-        // Setup isochrone source (empty initially)
+        // Setup sources and layers when map loads
         this.map.on('load', () => {
+            // Isochrone source
             this.map.addSource(this.isochroneSourceId, {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] }
@@ -80,9 +98,23 @@ const PropertyMap = {
                     'fill-outline-color': '#1d4ed8'
                 }
             });
+
+            // Mark as ready and run callbacks
+            this.ready = true;
+            this.readyCallbacks.forEach(cb => cb());
+            this.readyCallbacks = [];
         });
 
         return this.map;
+    },
+
+    // Register callback to run when map is ready
+    onReady(callback) {
+        if (this.ready) {
+            callback();
+        } else {
+            this.readyCallbacks.push(callback);
+        }
     },
 
     // Clear all markers
@@ -94,9 +126,13 @@ const PropertyMap = {
     // Add property markers to the map
     addPropertyMarkers(properties, onMarkerClick) {
         this.clearMarkers();
+        this.properties = properties;
 
         properties.forEach(property => {
             if (!property.lat || !property.lng) return;
+
+            // Get colour based on source
+            const color = this.getSourceColor(property.source);
 
             // Create marker element
             const el = document.createElement('div');
@@ -104,7 +140,7 @@ const PropertyMap = {
             el.style.cssText = `
                 width: 24px;
                 height: 24px;
-                background: #2563eb;
+                background: ${color};
                 border: 2px solid white;
                 border-radius: 50%;
                 cursor: pointer;
@@ -184,13 +220,15 @@ const PropertyMap = {
         return `${sw.lat},${sw.lng},${ne.lat},${ne.lng}`;
     },
 
-    // Fit map to show all markers
+    // Fit map to show all properties
     fitToMarkers() {
-        if (this.markers.length === 0) return;
+        if (this.properties.length === 0) return;
 
         const bounds = new maplibregl.LngLatBounds();
-        this.markers.forEach(marker => {
-            bounds.extend(marker.getLngLat());
+        this.properties.forEach(p => {
+            if (p.lat && p.lng) {
+                bounds.extend([p.lng, p.lat]);
+            }
         });
 
         this.map.fitBounds(bounds, { padding: 50 });

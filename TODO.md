@@ -68,22 +68,16 @@
 - [x] Add FarmBuy.com scraper (extracts embedded JSON + map coordinates)
 - [x] Scrape real property data from FarmProperty.com.au and FarmBuy.com
 - [x] Add .air.toml configuration for live reload
-
----
-
-## In Progress
-
-- [ ] Generate actual Sydney isochrone GeoJSON files
+- [x] Add cross-source deduplication (detect same property on multiple sites)
+- [x] Show multiple source links when property listed on multiple sites
+- [x] Generate Sydney isochrone GeoJSON files (15-90 min via Valhalla API)
+- [x] Calculate distances for all scraped properties (Sydney, nearest town, nearest school)
+- [x] Add map marker clustering using MapLibre's native GeoJSON clustering
+- [x] Add loading indicators for API calls (overlay spinner)
 
 ---
 
 ## Backlog
-
-### High Priority
-- [ ] Generate isochrone files for Sydney (15-120 min)
-- [ ] Calculate distances for all scraped properties
-- [ ] Add map marker clustering for large datasets
-- [ ] Add loading indicators for API calls
 
 ### Medium Priority
 - [ ] Add Domain.com.au scraper (may have bot protection)
@@ -177,3 +171,9 @@
 - MapLibre handles 100-200 markers smoothly
 - Beyond 500 markers, need clustering or server-side filtering
 - Isochrone polygons can be large; simplify geometry if needed
+
+### Cross-Source Deduplication
+- Properties within ~100m (0.001 degrees) are detected as duplicates
+- `property_links` table tracks canonical vs duplicate properties
+- Only canonical properties shown on map; duplicates hidden
+- Property detail modal shows all source links when listed on multiple sites

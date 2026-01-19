@@ -81,8 +81,7 @@
                 </div>
 
                 <div class="filter-actions">
-                    <button id="apply-filters" class="btn btn-primary">Apply Filters</button>
-                    <button id="clear-filters" class="btn btn-secondary">Clear</button>
+                    <button id="clear-filters" class="btn btn-secondary" style="flex: 1;">Reset Filters</button>
                 </div>
             </div>
 
@@ -93,6 +92,10 @@
 
         <main id="map-container">
             <div id="map"></div>
+            <div id="loading-overlay" class="hidden">
+                <div class="loading-spinner"></div>
+                <span>Loading properties...</span>
+            </div>
         </main>
 
         <!-- Property Detail Modal -->

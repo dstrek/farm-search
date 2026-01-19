@@ -39,7 +39,8 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 			COALESCE(p.price_text, '') as price_text,
 			COALESCE(p.property_type, '') as property_type,
 			COALESCE(p.address, '') as address,
-			COALESCE(p.suburb, '') as suburb
+			COALESCE(p.suburb, '') as suburb,
+			p.source
 		FROM properties p
 		LEFT JOIN property_distances pd_sydney ON p.id = pd_sydney.property_id 
 			AND pd_sydney.target_type = 'capital' AND pd_sydney.target_name = 'Sydney'

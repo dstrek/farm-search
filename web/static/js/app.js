@@ -17,14 +17,24 @@ const App = {
         // Setup modal
         this.initModal();
 
-        // Load initial properties when map is ready
-        PropertyMap.map.on('load', () => {
-            this.loadProperties();
-        });
+        // Load initial properties
+        this.loadProperties();
+    },
+
+    // Show/hide loading overlay
+    showLoading(message = 'Loading properties...') {
+        const overlay = document.getElementById('loading-overlay');
+        overlay.querySelector('span').textContent = message;
+        overlay.classList.remove('hidden');
+    },
+
+    hideLoading() {
+        document.getElementById('loading-overlay').classList.add('hidden');
     },
 
     // Load properties with current filters
     async loadProperties() {
+        this.showLoading('Loading properties...');
         try {
             const filters = Filters.getValues();
             
@@ -43,6 +53,8 @@ const App = {
         } catch (err) {
             console.error('Failed to load properties:', err);
             Filters.updateResultsCount(0);
+        } finally {
+            this.hideLoading();
         }
     },
 
@@ -53,12 +65,17 @@ const App = {
 
     // Show property details in modal
     async showPropertyDetails(id) {
+        // Show modal with loading state
+        const container = document.getElementById('property-detail');
+        container.innerHTML = '<div class="loading-spinner" style="margin: 40px auto;"></div>';
+        this.showModal();
+
         try {
             const property = await API.getProperty(id);
             this.renderPropertyModal(property);
-            this.showModal();
         } catch (err) {
             console.error('Failed to load property details:', err);
+            container.innerHTML = '<p style="color: #dc2626; text-align: center;">Failed to load property details.</p>';
         }
     },
 

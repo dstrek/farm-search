@@ -84,10 +84,22 @@ const Filters = {
         }
     },
 
+    // Debounce helper for text inputs
+    debounce(fn, delay) {
+        let timeoutId;
+        return (...args) => {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => fn(...args), delay);
+        };
+    },
+
     // Initialize filter event listeners
     init(onApply, onClear) {
-        // Apply button
-        document.getElementById('apply-filters').addEventListener('click', onApply);
+        // Store callback for reuse
+        this.onApply = onApply;
+
+        // Debounced version for text inputs
+        const debouncedApply = this.debounce(onApply, 300);
 
         // Clear button
         document.getElementById('clear-filters').addEventListener('click', () => {
@@ -95,25 +107,40 @@ const Filters = {
             onClear();
         });
 
-        // Range slider updates
-        this.initRangeSlider('distance-sydney', 500, 'km');
-        this.initRangeSlider('distance-town', 100, 'km');
-        this.initRangeSlider('distance-school', 50, 'km');
+        // Price inputs - debounced
+        document.getElementById('price-min').addEventListener('input', debouncedApply);
+        document.getElementById('price-max').addEventListener('input', debouncedApply);
 
-        // Drive time dropdown - update isochrone on change
+        // Property type checkboxes - immediate
+        document.querySelectorAll('#property-types input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', onApply);
+        });
+
+        // Land size inputs - debounced
+        document.getElementById('land-size-min').addEventListener('input', debouncedApply);
+        document.getElementById('land-size-max').addEventListener('input', debouncedApply);
+
+        // Range sliders - apply on change (mouseup/touchend)
+        this.initRangeSlider('distance-sydney', 500, 'km', onApply);
+        this.initRangeSlider('distance-town', 100, 'km', onApply);
+        this.initRangeSlider('distance-school', 50, 'km', onApply);
+
+        // Drive time dropdown - update isochrone and apply filter
         document.getElementById('drive-time-sydney').addEventListener('change', (e) => {
             const minutes = e.target.value;
             if (typeof PropertyMap !== 'undefined') {
                 PropertyMap.setIsochrone('sydney', minutes);
             }
+            onApply();
         });
     },
 
     // Initialize a range slider with display update
-    initRangeSlider(inputId, maxValue, unit) {
+    initRangeSlider(inputId, maxValue, unit, onApply) {
         const input = document.getElementById(inputId);
         const display = document.getElementById(`${inputId}-value`);
 
+        // Update display on input (while dragging)
         input.addEventListener('input', () => {
             if (parseInt(input.value, 10) >= maxValue) {
                 display.textContent = 'Any';
@@ -121,6 +148,9 @@ const Filters = {
                 display.textContent = `${input.value} ${unit}`;
             }
         });
+
+        // Apply filter on change (when released)
+        input.addEventListener('change', onApply);
     },
 
     // Update results count display
