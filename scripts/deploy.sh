@@ -7,6 +7,7 @@ set -euo pipefail
 SERVER="root@107.191.56.246"
 APP_DIR="/opt/farm-search"
 APP_USER="farm-search"
+MAPBOX_TOKEN="${MAPBOX_TOKEN:-}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -46,7 +47,7 @@ scp -q bin/web.tar.gz "$SERVER:$APP_DIR/"
 
 # Deploy on server
 log "Deploying on server..."
-ssh "$SERVER" bash << 'REMOTE_SCRIPT'
+ssh "$SERVER" bash << REMOTE_SCRIPT
 set -euo pipefail
 
 APP_DIR="/opt/farm-search"
@@ -69,6 +70,17 @@ mv bin/server.new bin/server
 if [ ! -f "$APP_DIR/data/farm-search.db" ]; then
     echo "Initializing database..."
     sudo -u "$APP_USER" "$APP_DIR/bin/tools" seed
+fi
+
+# Update MAPBOX_TOKEN in systemd service if provided
+MAPBOX_TOKEN="$MAPBOX_TOKEN"
+if [ -n "$MAPBOX_TOKEN" ]; then
+    if grep -q "Environment=MAPBOX_TOKEN=" /etc/systemd/system/farm-search.service; then
+        sed -i "s|Environment=MAPBOX_TOKEN=.*|Environment=MAPBOX_TOKEN=$MAPBOX_TOKEN|" /etc/systemd/system/farm-search.service
+    else
+        sed -i "/\[Service\]/a Environment=MAPBOX_TOKEN=$MAPBOX_TOKEN" /etc/systemd/system/farm-search.service
+    fi
+    systemctl daemon-reload
 fi
 
 # Restart the service

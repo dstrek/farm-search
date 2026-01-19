@@ -98,6 +98,9 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
+    <script>
+        window.MAPBOX_TOKEN = "{{.MapboxToken}}";
+    </script>
     <script src="/static/js/api.js?v={{.V}}"></script>
     <script src="/static/js/map.js?v={{.V}}"></script>
     <script src="/static/js/filters.js?v={{.V}}"></script>

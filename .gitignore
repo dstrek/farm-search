@@ -19,3 +19,6 @@ Thumbs.db
 # Test coverage
 coverage.out
 coverage.html
+
+# Environment (contains secrets)
+.env

@@ -56,10 +56,10 @@ const PropertyMap = {
                     satellite: {
                         type: 'raster',
                         tiles: [
-                            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                            `https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=${window.MAPBOX_TOKEN}`
                         ],
-                        tileSize: 256,
-                        attribution: '&copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
+                        tileSize: 512,
+                        attribution: '&copy; <a href="https://www.mapbox.com/">Mapbox</a> &copy; <a href="https://www.maxar.com/">Maxar</a>'
                     }
                 },
                 layers: [

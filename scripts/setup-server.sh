@@ -64,6 +64,7 @@ PrivateTmp=true
 
 # Environment
 Environment=GIN_MODE=release
+Environment=MAPBOX_TOKEN=
 
 [Install]
 WantedBy=multi-user.target

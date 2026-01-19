@@ -4,6 +4,7 @@ import (
 	"farm-search/internal/db"
 	"html/template"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -13,6 +14,9 @@ import (
 
 // Cache buster timestamp (set at startup)
 var cacheBuster = strconv.FormatInt(time.Now().Unix(), 10)
+
+// Mapbox token from environment
+var mapboxToken = os.Getenv("MAPBOX_TOKEN")
 
 // NewRouter creates and configures the Chi router
 func NewRouter(database *db.DB, staticDir string) http.Handler {
@@ -50,7 +54,10 @@ func NewRouter(database *db.DB, staticDir string) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		tmpl.Execute(w, map[string]string{"V": cacheBuster})
+		tmpl.Execute(w, map[string]string{
+			"V":           cacheBuster,
+			"MapboxToken": mapboxToken,
+		})
 	})
 
 	return r

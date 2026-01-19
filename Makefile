@@ -18,7 +18,7 @@ help:
 # Run the server in development mode with live reload
 run:
 	@command -v air >/dev/null 2>&1 || { echo "Installing air..."; go install github.com/air-verse/air@latest; }
-	@PATH="$$PATH:$$(go env GOPATH)/bin" air
+	@if [ -f .env ]; then set -a && . ./.env && set +a; fi && PATH="$$PATH:$$(go env GOPATH)/bin" air
 
 # Build binaries
 build:
@@ -68,7 +68,7 @@ setup: deps seed
 
 # Deploy to production server
 deploy:
-	@./scripts/deploy.sh
+	@if [ -f .env ]; then set -a && . ./.env && set +a; fi && ./scripts/deploy.sh
 
 # Initial server setup (run once on fresh server)
 setup-server:
