@@ -26,8 +26,8 @@ const PropertyMap = {
 
     // NSW bounds (approximately)
     NSW_BOUNDS: {
-        center: [147.0, -32.5],
-        zoom: 5.5,
+        center: [150.086, -34.048],
+        zoom: 7.72,
         minZoom: 4,
         maxZoom: 18
     },

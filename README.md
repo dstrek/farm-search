@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Cute cartoon sheep](https://cdn-icons-png.flaticon.com/512/3306/3306571.png)
+![Cute farm](web/static/img/cute-farm.svg)
 
 **Discover rural and farm properties for sale in NSW, Australia**
 

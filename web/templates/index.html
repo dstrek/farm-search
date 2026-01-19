@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Farm Search - NSW Property Map</title>
+    <link rel="icon" type="image/png" href="/static/img/favicon.png?v={{.V}}">
+    <link rel="apple-touch-icon" href="/static/img/favicon.png?v={{.V}}">
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.css">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v={{.V}}">
 </head>
 <body>
     <div id="app">
@@ -16,53 +18,29 @@
             </div>
             
             <div class="filters">
-                <h2>Filters</h2>
-                
                 <div class="filter-group">
-                    <label>Price Range</label>
-                    <div class="range-inputs">
-                        <input type="number" id="price-min" placeholder="Min $">
-                        <span>to</span>
-                        <input type="number" id="price-max" placeholder="Max $">
-                    </div>
+                    <label>Max Price <span id="price-max-value">Any</span></label>
+                    <input type="range" id="price-max" min="0" max="36" value="36">
                 </div>
 
                 <div class="filter-group">
-                    <label>Property Type</label>
-                    <div id="property-types" class="checkbox-group">
-                        <label><input type="checkbox" value="house"> House</label>
-                        <label><input type="checkbox" value="land"> Land</label>
-                        <label><input type="checkbox" value="farm"> Farm</label>
-                        <label><input type="checkbox" value="rural"> Rural</label>
-                        <label><input type="checkbox" value="acreage"> Acreage</label>
-                    </div>
+                    <label>Min Land Size <span id="land-size-min-value">Any</span></label>
+                    <input type="range" id="land-size-min" min="0" max="10" value="10">
                 </div>
 
                 <div class="filter-group">
-                    <label>Land Size (sqm)</label>
-                    <div class="range-inputs">
-                        <input type="number" id="land-size-min" placeholder="Min">
-                        <span>to</span>
-                        <input type="number" id="land-size-max" placeholder="Max">
-                    </div>
-                </div>
-
-                <div class="filter-group">
-                    <label for="distance-sydney">Distance from Sydney (km)</label>
+                    <label for="distance-sydney">Distance from Sydney <span id="distance-sydney-value">Any</span></label>
                     <input type="range" id="distance-sydney" min="0" max="500" value="500">
-                    <span id="distance-sydney-value">Any</span>
                 </div>
 
                 <div class="filter-group">
-                    <label for="distance-town">Distance from nearest town (km)</label>
+                    <label for="distance-town">Distance from town <span id="distance-town-value">Any</span></label>
                     <input type="range" id="distance-town" min="0" max="100" value="100">
-                    <span id="distance-town-value">Any</span>
                 </div>
 
                 <div class="filter-group">
-                    <label for="distance-school">Distance from nearest school (km)</label>
+                    <label for="distance-school">Distance from school <span id="distance-school-value">Any</span></label>
                     <input type="range" id="distance-school" min="0" max="50" value="50">
-                    <span id="distance-school-value">Any</span>
                 </div>
 
                 <div class="filter-group">
@@ -108,9 +86,9 @@
     </div>
 
     <script src="https://unpkg.com/maplibre-gl@4.1.0/dist/maplibre-gl.js"></script>
-    <script src="/static/js/api.js"></script>
-    <script src="/static/js/map.js"></script>
-    <script src="/static/js/filters.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/api.js?v={{.V}}"></script>
+    <script src="/static/js/map.js?v={{.V}}"></script>
+    <script src="/static/js/filters.js?v={{.V}}"></script>
+    <script src="/static/js/app.js?v={{.V}}"></script>
 </body>
 </html>

@@ -2,10 +2,17 @@ package api
 
 import (
 	"farm-search/internal/db"
+	"html/template"
 	"net/http"
+	"path/filepath"
+	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
+
+// Cache buster timestamp (set at startup)
+var cacheBuster = strconv.FormatInt(time.Now().Unix(), 10)
 
 // NewRouter creates and configures the Chi router
 func NewRouter(database *db.DB, staticDir string) http.Handler {
@@ -34,9 +41,16 @@ func NewRouter(database *db.DB, staticDir string) http.Handler {
 	isochroneServer := http.FileServer(http.Dir(staticDir + "/data/isochrones"))
 	r.Handle("/data/isochrones/*", http.StripPrefix("/data/isochrones/", isochroneServer))
 
-	// Serve index.html for root
+	// Serve index.html for root with cache buster
+	tmplPath := filepath.Join(staticDir, "..", "templates", "index.html")
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, staticDir+"/../templates/index.html")
+		tmpl, err := template.ParseFiles(tmplPath)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		tmpl.Execute(w, map[string]string{"V": cacheBuster})
 	})
 
 	return r

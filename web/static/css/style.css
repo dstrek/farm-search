@@ -79,6 +79,12 @@ html, body {
     color: var(--text-color);
 }
 
+.filter-group > label span {
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-left: 4px;
+}
+
 .range-inputs {
     display: flex;
     align-items: center;
