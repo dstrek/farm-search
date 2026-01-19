@@ -4,14 +4,14 @@ const Filters = {
     // Storage configuration
     // Bump this version when filter structure changes to auto-reset invalid saved data
     STORAGE_KEY: 'farm-search-filters',
-    STORAGE_VERSION: 2,
+    STORAGE_VERSION: 3,
 
     // Define expected filter schema for validation
     // Each key maps to: { type, min, max } for range validation
     filterSchema: {
         'price-max': { type: 'number', min: 0, max: 36 },
         'land-size-min': { type: 'number', min: 0, max: 10 },
-        'drive-time-sydney': { type: 'number', min: 30, max: 480 },
+        'drive-time-sydney': { type: 'number', min: 15, max: 255 },
         'distance-town': { type: 'number', min: 0, max: 100 },
         'distance-school': { type: 'number', min: 0, max: 50 },
         'isochrone-overlay': { type: 'string', allowed: ['', '60', '90', '120', '150', '180'] }
@@ -234,9 +234,9 @@ const Filters = {
         input.addEventListener('change', onApply);
     },
 
-    // Format drive time for display (e.g., 90 -> "1h 30m", 480 -> "Any")
+    // Format drive time for display (e.g., 90 -> "1h 30m", 255 -> "Any")
     formatDriveTime(minutes) {
-        if (minutes >= 480) return 'Any';
+        if (minutes >= 255) return 'Any';
         const hours = Math.floor(minutes / 60);
         const mins = minutes % 60;
         if (hours === 0) return `${mins}m`;
