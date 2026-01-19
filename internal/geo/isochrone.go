@@ -51,9 +51,9 @@ func NewIsochroneGenerator(baseURL string) *IsochroneGenerator {
 // lat, lng: center point coordinates
 // minutes: driving time in minutes
 func (g *IsochroneGenerator) GenerateIsochrone(ctx context.Context, lat, lng float64, minutes int) (*GeoJSONFeatureCollection, error) {
-	// Apply 20% buffer to make isochrones more conservative
+	// Apply 10% buffer to make isochrones more conservative
 	// (accounts for traffic, stops, slower rural roads)
-	adjustedMinutes := int(float64(minutes) * 0.8)
+	adjustedMinutes := int(float64(minutes) * 0.9)
 
 	url := fmt.Sprintf(
 		"%s/isochrone?json={\"locations\":[{\"lat\":%f,\"lon\":%f}],\"costing\":\"auto\",\"contours\":[{\"time\":%d}],\"polygons\":true}",
