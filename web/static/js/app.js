@@ -77,6 +77,27 @@ const App = {
             `;
         }
 
+        // Build source links - show all sources if property is listed on multiple sites
+        let sourcesHtml = '';
+        if (property.sources && property.sources.length > 1) {
+            // Multiple sources - show all
+            sourcesHtml = `
+                <div class="property-sources">
+                    <span class="sources-label">Listed on:</span>
+                    ${property.sources.map(s => 
+                        `<a href="${s.url}" target="_blank" rel="noopener" class="source-link">${formatSourceName(s.source)}</a>`
+                    ).join('')}
+                </div>
+            `;
+        } else {
+            // Single source
+            sourcesHtml = `
+                <a href="${property.url}" target="_blank" rel="noopener" class="view-listing">
+                    View on ${formatSourceName(property.source)}
+                </a>
+            `;
+        }
+
         container.innerHTML = `
             <h2>${property.address || 'Property Details'}</h2>
             <div class="price">${property.price_text || 'Contact Agent'}</div>
@@ -88,9 +109,7 @@ const App = {
             </div>
             ${imagesHtml}
             <div class="description">${property.description || 'No description available.'}</div>
-            <a href="${property.url}" target="_blank" rel="noopener" class="view-listing">
-                View on ${property.source.toUpperCase()}
-            </a>
+            ${sourcesHtml}
         `;
     },
 
@@ -129,6 +148,17 @@ function formatLandSize(sqm) {
         return `${(sqm / 10000).toFixed(1)} ha`;
     }
     return `${sqm.toLocaleString()} sqm`;
+}
+
+// Format source name for display
+function formatSourceName(source) {
+    const names = {
+        'farmproperty': 'FarmProperty',
+        'farmbuy': 'FarmBuy',
+        'rea': 'realestate.com.au',
+        'domain': 'Domain'
+    };
+    return names[source] || source.toUpperCase();
 }
 
 // Start the app when DOM is ready

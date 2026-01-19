@@ -58,6 +58,19 @@ CREATE TABLE IF NOT EXISTS schools (
 -- Unique constraint on external_id + source (same property ID can exist on different sites)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_properties_external_source ON properties(external_id, source);
 
+-- Property links table (tracks when same property appears on multiple sources)
+-- When properties are detected as duplicates, the older one becomes "canonical"
+CREATE TABLE IF NOT EXISTS property_links (
+    canonical_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    duplicate_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    match_type TEXT NOT NULL,  -- 'coords' (same lat/lng), 'address' (similar address)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (duplicate_id),  -- Each property can only be a duplicate of one canonical
+    CHECK (canonical_id != duplicate_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_property_links_canonical ON property_links(canonical_id);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_properties_coords ON properties(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_properties_price ON properties(price_min, price_max);

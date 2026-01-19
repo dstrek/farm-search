@@ -29,6 +29,7 @@ type PropertyFilter struct {
 }
 
 // ListProperties returns properties matching the given filters
+// Excludes duplicate properties (only shows canonical ones)
 func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error) {
 	query := `
 		SELECT DISTINCT
@@ -46,7 +47,9 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 			AND pd_town.target_type = 'town'
 		LEFT JOIN property_distances pd_school ON p.id = pd_school.property_id 
 			AND pd_school.target_type = 'school'
+		LEFT JOIN property_links pl ON p.id = pl.duplicate_id
 		WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+			AND pl.duplicate_id IS NULL  -- Exclude properties that are duplicates
 	`
 
 	args := make([]interface{}, 0)
@@ -187,11 +190,15 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 	var images []string
 	json.Unmarshal([]byte(p.Images), &images)
 
+	// Get all sources for this property
+	sources, _ := db.GetPropertySources(id)
+
 	return &models.PropertyDetail{
 		ID:           p.ID,
 		ExternalID:   p.ExternalID,
 		Source:       p.Source,
 		URL:          p.URL,
+		Sources:      sources,
 		Address:      p.Address,
 		Suburb:       p.Suburb,
 		State:        p.State,
@@ -314,6 +321,89 @@ func (db *DB) SavePropertyDistance(propertyID int64, targetType, targetName stri
 	`
 	_, err := db.Exec(query, propertyID, targetType, targetName, distanceKm)
 	return err
+}
+
+// FindDuplicateProperties finds properties that appear to be the same based on coordinates
+// Properties within ~100m of each other are considered potential duplicates
+func (db *DB) FindDuplicateProperties() error {
+	// Find properties with nearly identical coordinates (within ~0.001 degrees ≈ 100m)
+	query := `
+		INSERT OR IGNORE INTO property_links (canonical_id, duplicate_id, match_type)
+		SELECT 
+			p1.id as canonical_id,
+			p2.id as duplicate_id,
+			'coords' as match_type
+		FROM properties p1
+		JOIN properties p2 ON p1.id < p2.id
+			AND p1.source != p2.source
+			AND ABS(p1.latitude - p2.latitude) < 0.001
+			AND ABS(p1.longitude - p2.longitude) < 0.001
+			AND p1.latitude IS NOT NULL
+			AND p2.latitude IS NOT NULL
+		WHERE NOT EXISTS (
+			SELECT 1 FROM property_links pl 
+			WHERE pl.duplicate_id = p2.id
+		)
+	`
+	result, err := db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("failed to find duplicates: %w", err)
+	}
+
+	rows, _ := result.RowsAffected()
+	if rows > 0 {
+		fmt.Printf("Linked %d duplicate properties\n", rows)
+	}
+
+	return nil
+}
+
+// GetPropertySources returns all sources where a property is listed
+func (db *DB) GetPropertySources(propertyID int64) ([]models.PropertySource, error) {
+	// Get the property itself
+	var sources []models.PropertySource
+
+	// First, add the main property's source
+	var mainSource models.PropertySource
+	err := db.Get(&mainSource, "SELECT source, url FROM properties WHERE id = ?", propertyID)
+	if err != nil {
+		return nil, err
+	}
+	sources = append(sources, mainSource)
+
+	// Check if this property is a canonical (has duplicates linked to it)
+	var linkedSources []models.PropertySource
+	err = db.Select(&linkedSources, `
+		SELECT p.source, p.url 
+		FROM properties p
+		JOIN property_links pl ON p.id = pl.duplicate_id
+		WHERE pl.canonical_id = ?
+	`, propertyID)
+	if err == nil {
+		sources = append(sources, linkedSources...)
+	}
+
+	// Check if this property is a duplicate (linked to a canonical)
+	var canonicalID int64
+	err = db.Get(&canonicalID, "SELECT canonical_id FROM property_links WHERE duplicate_id = ?", propertyID)
+	if err == nil {
+		// Get the canonical property's source
+		var canonicalSource models.PropertySource
+		db.Get(&canonicalSource, "SELECT source, url FROM properties WHERE id = ?", canonicalID)
+		sources = append(sources, canonicalSource)
+
+		// Get other duplicates of the same canonical
+		var otherSources []models.PropertySource
+		db.Select(&otherSources, `
+			SELECT p.source, p.url 
+			FROM properties p
+			JOIN property_links pl ON p.id = pl.duplicate_id
+			WHERE pl.canonical_id = ? AND p.id != ?
+		`, canonicalID, propertyID)
+		sources = append(sources, otherSources...)
+	}
+
+	return sources, nil
 }
 
 // GetPropertyDistances returns all distance calculations for a property

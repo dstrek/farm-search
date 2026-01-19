@@ -228,6 +228,11 @@ func (s *Scraper) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to save listings: %w", err)
 	}
 
+	// Find and link duplicate properties (same property on multiple sites)
+	if err := s.db.FindDuplicateProperties(); err != nil {
+		log.Printf("Warning: failed to find duplicate properties: %v", err)
+	}
+
 	duration := time.Since(startTime)
 	log.Printf("Scraping complete: %d saved in %s", saved, duration)
 

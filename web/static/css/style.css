@@ -330,6 +330,36 @@ select {
     font-weight: 500;
 }
 
+/* Multiple sources display */
+#property-detail .property-sources {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+#property-detail .sources-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+#property-detail .source-link {
+    display: inline-block;
+    padding: 8px 16px;
+    background: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+#property-detail .source-link:hover {
+    background: #2a6a3a;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     #app {
