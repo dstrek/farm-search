@@ -61,4 +61,12 @@ func migrate(db *sqlx.DB) error {
 func runMigrations(db *sqlx.DB) {
 	// Add drive_time_sydney column if it doesn't exist
 	db.Exec("ALTER TABLE properties ADD COLUMN drive_time_sydney INTEGER")
+	// Add nearest town columns
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_1 TEXT")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_1_km REAL")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_2 TEXT")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_2_km REAL")
+	// Add nearest town drive time columns
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_1_mins INTEGER")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_2_mins INTEGER")
 }

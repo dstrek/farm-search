@@ -31,6 +31,10 @@ func main() {
 		calculateDistances()
 	case "drivetimes":
 		calculateDriveTimes()
+	case "towns":
+		calculateNearestTowns()
+	case "towndrivetimes":
+		calculateTownDriveTimes()
 	case "seed":
 		seedSampleData()
 	default:
@@ -43,10 +47,12 @@ func printUsage() {
 	fmt.Println("Usage: tools <command> [options]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  isochrones   Generate Sydney drive-time isochrones")
-	fmt.Println("  distances    Calculate property distances to towns, schools, Sydney")
-	fmt.Println("  drivetimes   Calculate drive times to Sutherland for all properties")
-	fmt.Println("  seed         Seed database with sample data")
+	fmt.Println("  isochrones      Generate Sydney drive-time isochrones")
+	fmt.Println("  distances       Calculate property distances to towns, schools, Sydney")
+	fmt.Println("  drivetimes      Calculate drive times to Sutherland for all properties")
+	fmt.Println("  towns           Calculate nearest towns for all properties")
+	fmt.Println("  towndrivetimes  Calculate drive times to nearest towns for all properties")
+	fmt.Println("  seed            Seed database with sample data")
 }
 
 func generateIsochrones() {
@@ -97,6 +103,152 @@ func generateIsochrones() {
 	}
 
 	log.Println("Done!")
+}
+
+func calculateTownDriveTimes() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	valhallaURL := flag.String("valhalla-url", "", "Valhalla server URL (e.g., http://localhost:8002 for local)")
+	all := flag.Bool("all", false, "Recalculate all properties, not just missing ones")
+	flag.Parse()
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// Create router
+	isLocal := *valhallaURL != ""
+	var router *geo.Router
+	if isLocal {
+		log.Printf("Using local Valhalla at %s (no rate limiting)", *valhallaURL)
+		router = geo.NewRouter(*valhallaURL)
+	} else {
+		log.Println("Using public Valhalla API (rate limited)")
+		router = geo.NewRouter("")
+	}
+
+	// Build a map of town name -> coordinates for quick lookup
+	townCoords := make(map[string]geo.Location)
+	for _, town := range geo.NSWTowns {
+		townCoords[town.Name] = town
+	}
+
+	// Get properties that need drive times calculated
+	var properties []struct {
+		ID           int64   `db:"id"`
+		Latitude     float64 `db:"latitude"`
+		Longitude    float64 `db:"longitude"`
+		Suburb       string  `db:"suburb"`
+		NearestTown1 string  `db:"nearest_town_1"`
+		NearestTown2 string  `db:"nearest_town_2"`
+	}
+
+	var query string
+	if *all {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb, 
+				 nearest_town_1, COALESCE(nearest_town_2, '') as nearest_town_2
+				 FROM properties 
+				 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+				 AND nearest_town_1 IS NOT NULL`
+	} else {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb,
+				 nearest_town_1, COALESCE(nearest_town_2, '') as nearest_town_2
+				 FROM properties 
+				 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+				 AND nearest_town_1 IS NOT NULL AND nearest_town_1_mins IS NULL`
+	}
+
+	err = database.Select(&properties, query)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No properties need town drive time calculation")
+		return
+	}
+
+	log.Printf("Calculating drive times to nearest towns for %d properties...", len(properties))
+
+	success := 0
+	failed := 0
+
+	for i, p := range properties {
+		var town1Mins, town2Mins *int
+
+		// Get drive time to nearest town 1
+		if town1, ok := townCoords[p.NearestTown1]; ok {
+			result, err := router.GetRoute(ctx, p.Latitude, p.Longitude, town1.Latitude, town1.Longitude)
+			if err != nil {
+				log.Printf("[%d/%d] Failed route to %s for property %d: %v",
+					i+1, len(properties), p.NearestTown1, p.ID, err)
+				failed++
+				if !isLocal {
+					time.Sleep(500 * time.Millisecond)
+				}
+				continue
+			}
+			mins := int(result.DurationMins + 0.5)
+			town1Mins = &mins
+		}
+
+		// Get drive time to nearest town 2 (if exists)
+		if p.NearestTown2 != "" {
+			if town2, ok := townCoords[p.NearestTown2]; ok {
+				result, err := router.GetRoute(ctx, p.Latitude, p.Longitude, town2.Latitude, town2.Longitude)
+				if err != nil {
+					log.Printf("[%d/%d] Failed route to %s for property %d: %v",
+						i+1, len(properties), p.NearestTown2, p.ID, err)
+					// Continue anyway, we at least have town 1
+				} else {
+					mins := int(result.DurationMins + 0.5)
+					town2Mins = &mins
+				}
+				if !isLocal {
+					time.Sleep(500 * time.Millisecond)
+				}
+			}
+		}
+
+		// Save to database
+		_, err = database.Exec(`
+			UPDATE properties 
+			SET nearest_town_1_mins = ?, nearest_town_2_mins = ?
+			WHERE id = ?`,
+			town1Mins, town2Mins, p.ID)
+
+		if err != nil {
+			log.Printf("[%d/%d] Failed to save for property %d: %v", i+1, len(properties), p.ID, err)
+			failed++
+			continue
+		}
+
+		town1Str := "N/A"
+		if town1Mins != nil {
+			town1Str = fmt.Sprintf("%d min", *town1Mins)
+		}
+		town2Str := "N/A"
+		if town2Mins != nil {
+			town2Str = fmt.Sprintf("%d min", *town2Mins)
+		}
+
+		log.Printf("[%d/%d] Property %d (%s): %s (%s), %s (%s)",
+			i+1, len(properties), p.ID, p.Suburb,
+			p.NearestTown1, town1Str, p.NearestTown2, town2Str)
+
+		success++
+
+		// Rate limiting only for public API
+		if !isLocal && town2Mins == nil {
+			// If we only made one request, add delay
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+
+	log.Printf("Done! Success: %d, Failed: %d", success, failed)
 }
 
 func calculateDistances() {
@@ -282,4 +434,69 @@ func calculateDriveTimes() {
 	}
 
 	log.Printf("Done! Success: %d, Failed: %d", success, failed)
+}
+
+func calculateNearestTowns() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	all := flag.Bool("all", false, "Recalculate all properties, not just missing ones")
+	flag.Parse()
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	// Get properties
+	var properties []struct {
+		ID        int64   `db:"id"`
+		Latitude  float64 `db:"latitude"`
+		Longitude float64 `db:"longitude"`
+		Suburb    string  `db:"suburb"`
+	}
+
+	var query string
+	if *all {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb 
+				 FROM properties WHERE latitude IS NOT NULL AND longitude IS NOT NULL`
+	} else {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb 
+				 FROM properties WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND nearest_town_1 IS NULL`
+	}
+
+	err = database.Select(&properties, query)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No properties need nearest town calculation")
+		return
+	}
+
+	log.Printf("Calculating nearest towns for %d properties using %d towns...", len(properties), len(geo.NSWTowns))
+
+	for i, p := range properties {
+		// Find two nearest towns
+		town1, town2 := geo.FindTwoNearestTowns(p.Latitude, p.Longitude)
+
+		// Save to database
+		_, err = database.Exec(`
+			UPDATE properties 
+			SET nearest_town_1 = ?, nearest_town_1_km = ?, 
+			    nearest_town_2 = ?, nearest_town_2_km = ?
+			WHERE id = ?`,
+			town1.Name, town1.DistanceKm, town2.Name, town2.DistanceKm, p.ID)
+
+		if err != nil {
+			log.Printf("[%d/%d] Failed to save for property %d: %v", i+1, len(properties), p.ID, err)
+			continue
+		}
+
+		log.Printf("[%d/%d] Property %d (%s): %s (%.1f km), %s (%.1f km)",
+			i+1, len(properties), p.ID, p.Suburb,
+			town1.Name, town1.DistanceKm, town2.Name, town2.DistanceKm)
+	}
+
+	log.Println("Done!")
 }

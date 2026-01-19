@@ -22,7 +22,13 @@ CREATE TABLE IF NOT EXISTS properties (
     listed_at DATETIME,
     scraped_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
-    drive_time_sydney INTEGER  -- Drive time to Sutherland in minutes (via Valhalla routing)
+    drive_time_sydney INTEGER,  -- Drive time to Sutherland in minutes (via Valhalla routing)
+    nearest_town_1 TEXT,        -- Name of nearest town
+    nearest_town_1_km REAL,     -- Distance to nearest town in km
+    nearest_town_1_mins INTEGER,-- Drive time to nearest town in minutes
+    nearest_town_2 TEXT,        -- Name of second nearest town  
+    nearest_town_2_km REAL,     -- Distance to second nearest town in km
+    nearest_town_2_mins INTEGER -- Drive time to second nearest town in minutes
 );
 
 -- Pre-computed distances for filtering

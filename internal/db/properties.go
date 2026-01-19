@@ -18,6 +18,7 @@ type PropertyFilter struct {
 	DistanceTownMax    *float64
 	DistanceSchoolMax  *float64
 	DriveTimeSydneyMax *int
+	DriveTimeTownMax   *int // Drive time to nearest town in minutes
 	// Map bounds
 	SWLat *float64
 	SWLng *float64
@@ -45,8 +46,6 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 		FROM properties p
 		LEFT JOIN property_distances pd_sydney ON p.id = pd_sydney.property_id 
 			AND pd_sydney.target_type = 'capital' AND pd_sydney.target_name = 'Sydney'
-		LEFT JOIN property_distances pd_town ON p.id = pd_town.property_id 
-			AND pd_town.target_type = 'town'
 		LEFT JOIN property_distances pd_school ON p.id = pd_school.property_id 
 			AND pd_school.target_type = 'school'
 		LEFT JOIN property_links pl ON p.id = pl.duplicate_id
@@ -95,7 +94,8 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 		args = append(args, *f.DistanceSydneyMax)
 	}
 	if f.DistanceTownMax != nil {
-		query += " AND pd_town.distance_km <= ?"
+		// Use pre-computed nearest_town_1_km on properties table (much faster)
+		query += " AND p.nearest_town_1_km <= ?"
 		args = append(args, *f.DistanceTownMax)
 	}
 	if f.DistanceSchoolMax != nil {
@@ -103,10 +103,14 @@ func (db *DB) ListProperties(f PropertyFilter) ([]models.PropertyListItem, error
 		args = append(args, *f.DistanceSchoolMax)
 	}
 
-	// Drive time filter (uses pre-computed column on properties table)
+	// Drive time filters (use pre-computed columns on properties table)
 	if f.DriveTimeSydneyMax != nil {
 		query += " AND p.drive_time_sydney <= ?"
 		args = append(args, *f.DriveTimeSydneyMax)
+	}
+	if f.DriveTimeTownMax != nil {
+		query += " AND p.nearest_town_1_mins <= ?"
+		args = append(args, *f.DriveTimeTownMax)
 	}
 
 	// Map bounds filter
@@ -156,32 +160,40 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 			COALESCE(description, '') as description,
 			COALESCE(images, '[]') as images,
 			listed_at,
-			drive_time_sydney
+			drive_time_sydney,
+			nearest_town_1, nearest_town_1_km, nearest_town_1_mins,
+			nearest_town_2, nearest_town_2_km, nearest_town_2_mins
 		FROM properties WHERE id = ?
 	`
 
 	var p struct {
-		ID              int64    `db:"id"`
-		ExternalID      string   `db:"external_id"`
-		Source          string   `db:"source"`
-		URL             string   `db:"url"`
-		Address         string   `db:"address"`
-		Suburb          string   `db:"suburb"`
-		State           string   `db:"state"`
-		Postcode        string   `db:"postcode"`
-		Latitude        float64  `db:"latitude"`
-		Longitude       float64  `db:"longitude"`
-		PriceMin        *int64   `db:"price_min"`
-		PriceMax        *int64   `db:"price_max"`
-		PriceText       string   `db:"price_text"`
-		PropertyType    string   `db:"property_type"`
-		Bedrooms        *int64   `db:"bedrooms"`
-		Bathrooms       *int64   `db:"bathrooms"`
-		LandSizeSqm     *float64 `db:"land_size_sqm"`
-		Description     string   `db:"description"`
-		Images          string   `db:"images"`
-		ListedAt        *string  `db:"listed_at"`
-		DriveTimeSydney *int     `db:"drive_time_sydney"`
+		ID               int64    `db:"id"`
+		ExternalID       string   `db:"external_id"`
+		Source           string   `db:"source"`
+		URL              string   `db:"url"`
+		Address          string   `db:"address"`
+		Suburb           string   `db:"suburb"`
+		State            string   `db:"state"`
+		Postcode         string   `db:"postcode"`
+		Latitude         float64  `db:"latitude"`
+		Longitude        float64  `db:"longitude"`
+		PriceMin         *int64   `db:"price_min"`
+		PriceMax         *int64   `db:"price_max"`
+		PriceText        string   `db:"price_text"`
+		PropertyType     string   `db:"property_type"`
+		Bedrooms         *int64   `db:"bedrooms"`
+		Bathrooms        *int64   `db:"bathrooms"`
+		LandSizeSqm      *float64 `db:"land_size_sqm"`
+		Description      string   `db:"description"`
+		Images           string   `db:"images"`
+		ListedAt         *string  `db:"listed_at"`
+		DriveTimeSydney  *int     `db:"drive_time_sydney"`
+		NearestTown1     *string  `db:"nearest_town_1"`
+		NearestTown1Km   *float64 `db:"nearest_town_1_km"`
+		NearestTown1Mins *int     `db:"nearest_town_1_mins"`
+		NearestTown2     *string  `db:"nearest_town_2"`
+		NearestTown2Km   *float64 `db:"nearest_town_2_km"`
+		NearestTown2Mins *int     `db:"nearest_town_2_mins"`
 	}
 
 	err := db.Get(&p, query, id)
@@ -196,28 +208,34 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 	sources, _ := db.GetPropertySources(id)
 
 	return &models.PropertyDetail{
-		ID:              p.ID,
-		ExternalID:      p.ExternalID,
-		Source:          p.Source,
-		URL:             p.URL,
-		Sources:         sources,
-		Address:         p.Address,
-		Suburb:          p.Suburb,
-		State:           p.State,
-		Postcode:        p.Postcode,
-		Latitude:        p.Latitude,
-		Longitude:       p.Longitude,
-		PriceMin:        p.PriceMin,
-		PriceMax:        p.PriceMax,
-		PriceText:       p.PriceText,
-		PropertyType:    p.PropertyType,
-		Bedrooms:        p.Bedrooms,
-		Bathrooms:       p.Bathrooms,
-		LandSizeSqm:     p.LandSizeSqm,
-		Description:     p.Description,
-		Images:          images,
-		ListedAt:        p.ListedAt,
-		DriveTimeSydney: p.DriveTimeSydney,
+		ID:               p.ID,
+		ExternalID:       p.ExternalID,
+		Source:           p.Source,
+		URL:              p.URL,
+		Sources:          sources,
+		Address:          p.Address,
+		Suburb:           p.Suburb,
+		State:            p.State,
+		Postcode:         p.Postcode,
+		Latitude:         p.Latitude,
+		Longitude:        p.Longitude,
+		PriceMin:         p.PriceMin,
+		PriceMax:         p.PriceMax,
+		PriceText:        p.PriceText,
+		PropertyType:     p.PropertyType,
+		Bedrooms:         p.Bedrooms,
+		Bathrooms:        p.Bathrooms,
+		LandSizeSqm:      p.LandSizeSqm,
+		Description:      p.Description,
+		Images:           images,
+		ListedAt:         p.ListedAt,
+		DriveTimeSydney:  p.DriveTimeSydney,
+		NearestTown1:     p.NearestTown1,
+		NearestTown1Km:   p.NearestTown1Km,
+		NearestTown1Mins: p.NearestTown1Mins,
+		NearestTown2:     p.NearestTown2,
+		NearestTown2Km:   p.NearestTown2Km,
+		NearestTown2Mins: p.NearestTown2Mins,
 	}, nil
 }
 

@@ -82,9 +82,9 @@
 ### High Priority
 - [x] Pre-compute drive time to Sutherland for each property and show in popup
 - [x] Replace "distance from Sydney" filter with "drive time to Sutherland" filter
-- [ ] Store a list of towns in the database
-- [ ] Show distance to 2 nearest towns on each property
-- [ ] Update "distance from town" filter to check max distance of property to its nearest town
+- [x] Store a list of towns (211 NSW towns in internal/geo/distance.go)
+- [x] Show distance to 2 nearest towns on each property (in modal)
+- [x] Change "distance from town" filter to "drive time to nearest town" filter
 - [ ] Research NSW Planning Portal for spatial data to get property boundaries
 - [ ] Render property boundaries on map after a certain zoom level
 

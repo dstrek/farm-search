@@ -4,7 +4,7 @@ const Filters = {
     // Storage configuration
     // Bump this version when filter structure changes to auto-reset invalid saved data
     STORAGE_KEY: 'farm-search-filters',
-    STORAGE_VERSION: 3,
+    STORAGE_VERSION: 4,
 
     // Define expected filter schema for validation
     // Each key maps to: { type, min, max } for range validation
@@ -12,7 +12,7 @@ const Filters = {
         'price-max': { type: 'number', min: 0, max: 36 },
         'land-size-min': { type: 'number', min: 0, max: 10 },
         'drive-time-sydney': { type: 'number', min: 15, max: 255 },
-        'distance-town': { type: 'number', min: 0, max: 100 },
+        'drive-time-town': { type: 'number', min: 5, max: 60 },
         'distance-school': { type: 'number', min: 0, max: 50 },
         'isochrone-overlay': { type: 'string', allowed: ['', '60', '90', '120', '150', '180'] }
     },
@@ -60,15 +60,15 @@ const Filters = {
             filters.driveTimeSydneyMax = parseInt(driveTime.value, 10);
         }
 
-        // Distance from town
-        const distanceTown = document.getElementById('distance-town');
-        if (distanceTown.value < distanceTown.max) {
-            filters.distanceTownMax = parseInt(distanceTown.value, 10);
+        // Drive time to nearest town (in minutes)
+        const driveTimeTown = document.getElementById('drive-time-town');
+        if (parseInt(driveTimeTown.value, 10) < parseInt(driveTimeTown.max, 10)) {
+            filters.driveTimeTownMax = parseInt(driveTimeTown.value, 10);
         }
 
         // Distance from school
         const distanceSchool = document.getElementById('distance-school');
-        if (distanceSchool.value < distanceSchool.max) {
+        if (parseInt(distanceSchool.value, 10) < parseInt(distanceSchool.max, 10)) {
             filters.distanceSchoolMax = parseInt(distanceSchool.value, 10);
         }
 
@@ -89,9 +89,9 @@ const Filters = {
         driveTime.value = driveTime.max;
         this.updateRangeDisplay('drive-time-sydney', 'Any');
 
-        const distanceTown = document.getElementById('distance-town');
-        distanceTown.value = distanceTown.max;
-        this.updateRangeDisplay('distance-town', 'Any');
+        const driveTimeTown = document.getElementById('drive-time-town');
+        driveTimeTown.value = driveTimeTown.max;
+        this.updateRangeDisplay('drive-time-town', 'Any');
 
         const distanceSchool = document.getElementById('distance-school');
         distanceSchool.value = distanceSchool.max;
@@ -150,11 +150,11 @@ const Filters = {
         // Land size slider
         this.initLandSizeSlider('land-size-min', onApplyAndSave);
 
-        // Drive time slider
+        // Drive time sliders
         this.initDriveTimeSlider('drive-time-sydney', onApplyAndSave);
+        this.initDriveTimeSliderTown('drive-time-town', onApplyAndSave);
 
         // Range sliders - apply on change (mouseup/touchend)
-        this.initRangeSlider('distance-town', 100, 'km', onApplyAndSave);
         this.initRangeSlider('distance-school', 50, 'km', onApplyAndSave);
 
         // Isochrone overlay dropdown - updates map display only (not filtering)
@@ -259,6 +259,25 @@ const Filters = {
         input.addEventListener('change', onApply);
     },
 
+    // Initialize drive time to town slider (5 min increments, 5-60 min)
+    initDriveTimeSliderTown(inputId, onApply) {
+        const input = document.getElementById(inputId);
+        const display = document.getElementById(`${inputId}-value`);
+
+        // Update display on input (while dragging)
+        input.addEventListener('input', () => {
+            const mins = parseInt(input.value, 10);
+            if (mins >= 60) {
+                display.textContent = 'Any';
+            } else {
+                display.textContent = `${mins} min`;
+            }
+        });
+
+        // Apply filter on change (when released)
+        input.addEventListener('change', onApply);
+    },
+
     // Update results count display
     updateResultsCount(count) {
         document.getElementById('results-count').textContent = count;
@@ -327,7 +346,7 @@ const Filters = {
             'price-max': parseInt(document.getElementById('price-max').value, 10),
             'land-size-min': parseInt(document.getElementById('land-size-min').value, 10),
             'drive-time-sydney': parseInt(document.getElementById('drive-time-sydney').value, 10),
-            'distance-town': parseInt(document.getElementById('distance-town').value, 10),
+            'drive-time-town': parseInt(document.getElementById('drive-time-town').value, 10),
             'distance-school': parseInt(document.getElementById('distance-school').value, 10),
             'isochrone-overlay': document.getElementById('isochrone-overlay').value
         };
@@ -401,11 +420,11 @@ const Filters = {
             this.updateRangeDisplay('drive-time-sydney', this.formatDriveTime(filters['drive-time-sydney']));
         }
 
-        if (filters['distance-town'] !== undefined) {
-            const el = document.getElementById('distance-town');
-            el.value = filters['distance-town'];
-            const display = filters['distance-town'] >= 100 ? 'Any' : `${filters['distance-town']} km`;
-            this.updateRangeDisplay('distance-town', display);
+        if (filters['drive-time-town'] !== undefined) {
+            const el = document.getElementById('drive-time-town');
+            el.value = filters['drive-time-town'];
+            const display = filters['drive-time-town'] >= 60 ? 'Any' : `${filters['drive-time-town']} min`;
+            this.updateRangeDisplay('drive-time-town', display);
         }
 
         if (filters['distance-school'] !== undefined) {

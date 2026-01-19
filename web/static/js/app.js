@@ -127,6 +127,24 @@ const App = {
             driveTimeHtml = `<div class="drive-time-info">${timeStr} drive to Sutherland</div>`;
         }
 
+        // Format nearest towns if available (show drive time if available, otherwise distance)
+        let nearestTownsHtml = '';
+        if (property.nearest_town_1) {
+            let town1Info = property.nearest_town_1_mins 
+                ? `${property.nearest_town_1_mins} min` 
+                : (property.nearest_town_1_km ? `${property.nearest_town_1_km.toFixed(0)} km` : '?');
+            let townsContent = `<span class="town-item">${property.nearest_town_1} (${town1Info})</span>`;
+            
+            if (property.nearest_town_2) {
+                let town2Info = property.nearest_town_2_mins 
+                    ? `${property.nearest_town_2_mins} min` 
+                    : (property.nearest_town_2_km ? `${property.nearest_town_2_km.toFixed(0)} km` : '?');
+                townsContent += `<span class="town-item">${property.nearest_town_2} (${town2Info})</span>`;
+            }
+            
+            nearestTownsHtml = `<div class="nearest-towns">Nearest towns: ${townsContent}</div>`;
+        }
+
         container.innerHTML = `
             <h2>${property.address || 'Property Details'}</h2>
             <div class="price">${property.price_text || 'Contact Agent'}</div>
@@ -137,6 +155,7 @@ const App = {
                 ${property.land_size_sqm ? `<span>${formatLandSize(property.land_size_sqm)}</span>` : ''}
             </div>
             ${driveTimeHtml}
+            ${nearestTownsHtml}
             ${imagesHtml}
             <div class="description">${property.description || 'No description available.'}</div>
             ${sourcesHtml}

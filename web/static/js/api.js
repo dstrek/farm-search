@@ -18,6 +18,7 @@ const API = {
         if (filters.distanceTownMax) params.set('distance_town_max', filters.distanceTownMax);
         if (filters.distanceSchoolMax) params.set('distance_school_max', filters.distanceSchoolMax);
         if (filters.driveTimeSydneyMax) params.set('drive_time_sydney_max', filters.driveTimeSydneyMax);
+        if (filters.driveTimeTownMax) params.set('drive_time_town_max', filters.driveTimeTownMax);
         if (filters.bounds) params.set('bounds', filters.bounds);
         if (filters.limit) params.set('limit', filters.limit);
 

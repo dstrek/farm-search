@@ -72,10 +72,15 @@ func (h *Handlers) ListProperties(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Parse drive time filter
+	// Parse drive time filters
 	if v := q.Get("drive_time_sydney_max"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil {
 			filter.DriveTimeSydneyMax = &val
+		}
+	}
+	if v := q.Get("drive_time_town_max"); v != "" {
+		if val, err := strconv.Atoi(v); err == nil {
+			filter.DriveTimeTownMax = &val
 		}
 	}
 

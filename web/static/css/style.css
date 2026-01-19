@@ -401,7 +401,23 @@ select {
     border-radius: 6px;
     font-size: 0.875rem;
     font-weight: 500;
+    margin-bottom: 12px;
+}
+
+#property-detail .nearest-towns {
+    font-size: 0.875rem;
+    color: var(--text-muted);
     margin-bottom: 16px;
+}
+
+#property-detail .nearest-towns .town-item {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    margin-left: 6px;
+    color: var(--text-color);
+    font-weight: 500;
 }
 
 #property-detail .property-images {

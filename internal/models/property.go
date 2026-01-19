@@ -82,26 +82,32 @@ type PropertySource struct {
 
 // PropertyDetail is the full property info for popup/modal
 type PropertyDetail struct {
-	ID              int64            `json:"id"`
-	ExternalID      string           `json:"external_id"`
-	Source          string           `json:"source"`
-	URL             string           `json:"url"`
-	Sources         []PropertySource `json:"sources,omitempty"` // All sources where this property is listed
-	Address         string           `json:"address"`
-	Suburb          string           `json:"suburb"`
-	State           string           `json:"state"`
-	Postcode        string           `json:"postcode"`
-	Latitude        float64          `json:"lat"`
-	Longitude       float64          `json:"lng"`
-	PriceMin        *int64           `json:"price_min,omitempty"`
-	PriceMax        *int64           `json:"price_max,omitempty"`
-	PriceText       string           `json:"price_text"`
-	PropertyType    string           `json:"property_type"`
-	Bedrooms        *int64           `json:"bedrooms,omitempty"`
-	Bathrooms       *int64           `json:"bathrooms,omitempty"`
-	LandSizeSqm     *float64         `json:"land_size_sqm,omitempty"`
-	Description     string           `json:"description"`
-	Images          []string         `json:"images"`
-	ListedAt        *string          `json:"listed_at,omitempty"`
-	DriveTimeSydney *int             `json:"drive_time_sydney,omitempty"` // Drive time to Sutherland in minutes
+	ID               int64            `json:"id"`
+	ExternalID       string           `json:"external_id"`
+	Source           string           `json:"source"`
+	URL              string           `json:"url"`
+	Sources          []PropertySource `json:"sources,omitempty"` // All sources where this property is listed
+	Address          string           `json:"address"`
+	Suburb           string           `json:"suburb"`
+	State            string           `json:"state"`
+	Postcode         string           `json:"postcode"`
+	Latitude         float64          `json:"lat"`
+	Longitude        float64          `json:"lng"`
+	PriceMin         *int64           `json:"price_min,omitempty"`
+	PriceMax         *int64           `json:"price_max,omitempty"`
+	PriceText        string           `json:"price_text"`
+	PropertyType     string           `json:"property_type"`
+	Bedrooms         *int64           `json:"bedrooms,omitempty"`
+	Bathrooms        *int64           `json:"bathrooms,omitempty"`
+	LandSizeSqm      *float64         `json:"land_size_sqm,omitempty"`
+	Description      string           `json:"description"`
+	Images           []string         `json:"images"`
+	ListedAt         *string          `json:"listed_at,omitempty"`
+	DriveTimeSydney  *int             `json:"drive_time_sydney,omitempty"`   // Drive time to Sutherland in minutes
+	NearestTown1     *string          `json:"nearest_town_1,omitempty"`      // Name of nearest town
+	NearestTown1Km   *float64         `json:"nearest_town_1_km,omitempty"`   // Distance to nearest town
+	NearestTown1Mins *int             `json:"nearest_town_1_mins,omitempty"` // Drive time to nearest town in minutes
+	NearestTown2     *string          `json:"nearest_town_2,omitempty"`      // Name of second nearest town
+	NearestTown2Km   *float64         `json:"nearest_town_2_km,omitempty"`   // Distance to second nearest town
+	NearestTown2Mins *int             `json:"nearest_town_2_mins,omitempty"` // Drive time to second nearest town in minutes
 }
