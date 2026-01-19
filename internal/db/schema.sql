@@ -1,7 +1,7 @@
 -- Properties table
 CREATE TABLE IF NOT EXISTS properties (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    external_id TEXT UNIQUE NOT NULL,
+    external_id TEXT NOT NULL,
     source TEXT NOT NULL,
     url TEXT NOT NULL,
     address TEXT,
@@ -55,11 +55,13 @@ CREATE TABLE IF NOT EXISTS schools (
     longitude REAL NOT NULL
 );
 
+-- Unique constraint on external_id + source (same property ID can exist on different sites)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_properties_external_source ON properties(external_id, source);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_properties_coords ON properties(latitude, longitude);
 CREATE INDEX IF NOT EXISTS idx_properties_price ON properties(price_min, price_max);
 CREATE INDEX IF NOT EXISTS idx_properties_type ON properties(property_type);
-CREATE INDEX IF NOT EXISTS idx_properties_source ON properties(source);
 CREATE INDEX IF NOT EXISTS idx_distances_property ON property_distances(property_id);
 CREATE INDEX IF NOT EXISTS idx_distances_type ON property_distances(target_type, target_name);
 CREATE INDEX IF NOT EXISTS idx_towns_coords ON towns(latitude, longitude);

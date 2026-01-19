@@ -9,14 +9,14 @@ import (
 
 // PropertyFilter contains all filter parameters for property queries
 type PropertyFilter struct {
-	PriceMin          *int64
-	PriceMax          *int64
-	PropertyTypes     []string
-	LandSizeMin       *float64
-	LandSizeMax       *float64
-	DistanceSydneyMax *float64
-	DistanceTownMax   *float64
-	DistanceSchoolMax *float64
+	PriceMin           *int64
+	PriceMax           *int64
+	PropertyTypes      []string
+	LandSizeMin        *float64
+	LandSizeMax        *float64
+	DistanceSydneyMax  *float64
+	DistanceTownMax    *float64
+	DistanceSchoolMax  *float64
 	DriveTimeSydneyMax *int
 	// Map bounds
 	SWLat *float64
@@ -157,26 +157,26 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 	`
 
 	var p struct {
-		ID           int64   `db:"id"`
-		ExternalID   string  `db:"external_id"`
-		Source       string  `db:"source"`
-		URL          string  `db:"url"`
-		Address      string  `db:"address"`
-		Suburb       string  `db:"suburb"`
-		State        string  `db:"state"`
-		Postcode     string  `db:"postcode"`
-		Latitude     float64 `db:"latitude"`
-		Longitude    float64 `db:"longitude"`
-		PriceMin     *int64  `db:"price_min"`
-		PriceMax     *int64  `db:"price_max"`
-		PriceText    string  `db:"price_text"`
-		PropertyType string  `db:"property_type"`
-		Bedrooms     *int64  `db:"bedrooms"`
-		Bathrooms    *int64  `db:"bathrooms"`
+		ID           int64    `db:"id"`
+		ExternalID   string   `db:"external_id"`
+		Source       string   `db:"source"`
+		URL          string   `db:"url"`
+		Address      string   `db:"address"`
+		Suburb       string   `db:"suburb"`
+		State        string   `db:"state"`
+		Postcode     string   `db:"postcode"`
+		Latitude     float64  `db:"latitude"`
+		Longitude    float64  `db:"longitude"`
+		PriceMin     *int64   `db:"price_min"`
+		PriceMax     *int64   `db:"price_max"`
+		PriceText    string   `db:"price_text"`
+		PropertyType string   `db:"property_type"`
+		Bedrooms     *int64   `db:"bedrooms"`
+		Bathrooms    *int64   `db:"bathrooms"`
 		LandSizeSqm  *float64 `db:"land_size_sqm"`
-		Description  string  `db:"description"`
-		Images       string  `db:"images"`
-		ListedAt     *string `db:"listed_at"`
+		Description  string   `db:"description"`
+		Images       string   `db:"images"`
+		ListedAt     *string  `db:"listed_at"`
 	}
 
 	err := db.Get(&p, query, id)
@@ -264,7 +264,7 @@ func (db *DB) UpsertProperty(p *models.Property) error {
 			?, ?, ?, ?,
 			?, ?, ?, ?, ?
 		)
-		ON CONFLICT(external_id) DO UPDATE SET
+		ON CONFLICT(external_id, source) DO UPDATE SET
 			url = excluded.url,
 			address = COALESCE(excluded.address, properties.address),
 			suburb = COALESCE(excluded.suburb, properties.suburb),
