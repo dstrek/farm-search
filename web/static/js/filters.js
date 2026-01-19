@@ -1,6 +1,22 @@
 // Filters module - handles sidebar filter UI
 
 const Filters = {
+    // Storage configuration
+    // Bump this version when filter structure changes to auto-reset invalid saved data
+    STORAGE_KEY: 'farm-search-filters',
+    STORAGE_VERSION: 1,
+
+    // Define expected filter schema for validation
+    // Each key maps to: { type, min, max } for range validation
+    filterSchema: {
+        'price-max': { type: 'number', min: 0, max: 36 },
+        'land-size-min': { type: 'number', min: 0, max: 10 },
+        'distance-sydney': { type: 'number', min: 0, max: 500 },
+        'distance-town': { type: 'number', min: 0, max: 100 },
+        'distance-school': { type: 'number', min: 0, max: 50 },
+        'drive-time-sydney': { type: 'string', allowed: ['', '15', '30', '45', '60', '75', '90', '105', '120', '135', '150', '165', '180'] }
+    },
+
     // Price steps: $0, $100k-$2M in $100k increments, then $2.5M-$10M in $500k increments
     // Index 0 = Any, 1-20 = $100k-$2M, 21-36 = $2.5M-$10M
     priceSteps: [
@@ -108,33 +124,52 @@ const Filters = {
         // Store callback for reuse
         this.onApply = onApply;
 
-        // Debounced version for text inputs
-        const debouncedApply = this.debounce(onApply, 300);
+        // Wrap onApply to also save filters after each change
+        const onApplyAndSave = () => {
+            onApply();
+            this.save();
+        };
 
-        // Clear button
+        // Debounced version for text inputs
+        const debouncedApply = this.debounce(onApplyAndSave, 300);
+
+        // Load saved filters before setting up listeners
+        const hadSavedFilters = this.load();
+
+        // Clear button - also clears saved filters
         document.getElementById('clear-filters').addEventListener('click', () => {
             this.clear();
+            this.clearSaved();
             onClear();
         });
 
         // Price slider (max only)
-        this.initPriceSlider('price-max', onApply);
+        this.initPriceSlider('price-max', onApplyAndSave);
 
         // Land size slider
-        this.initLandSizeSlider('land-size-min', onApply);
+        this.initLandSizeSlider('land-size-min', onApplyAndSave);
 
         // Range sliders - apply on change (mouseup/touchend)
-        this.initRangeSlider('distance-sydney', 500, 'km', onApply);
-        this.initRangeSlider('distance-town', 100, 'km', onApply);
-        this.initRangeSlider('distance-school', 50, 'km', onApply);
+        this.initRangeSlider('distance-sydney', 500, 'km', onApplyAndSave);
+        this.initRangeSlider('distance-town', 100, 'km', onApplyAndSave);
+        this.initRangeSlider('distance-school', 50, 'km', onApplyAndSave);
 
-        // Drive time dropdown - only updates isochrone display, no property filtering
+        // Drive time dropdown - updates isochrone display and saves state
         document.getElementById('drive-time-sydney').addEventListener('change', (e) => {
             const minutes = e.target.value;
             if (typeof PropertyMap !== 'undefined') {
                 PropertyMap.setIsochrone('sutherland', minutes);
             }
+            this.save();
         });
+
+        // If we restored saved filters with a drive time, load that isochrone when map is ready
+        if (hadSavedFilters) {
+            const driveTime = document.getElementById('drive-time-sydney').value;
+            if (driveTime && typeof PropertyMap !== 'undefined') {
+                PropertyMap.onReady(() => PropertyMap.setIsochrone('sutherland', driveTime));
+            }
+        }
     },
 
     // Initialize a range slider with display update
@@ -199,5 +234,173 @@ const Filters = {
     // Update results count display
     updateResultsCount(count) {
         document.getElementById('results-count').textContent = count;
+    },
+
+    // ==================== LocalStorage Persistence ====================
+
+    // Validate a single filter value against the schema
+    validateFilterValue(key, value) {
+        const schema = this.filterSchema[key];
+        if (!schema) return false;
+
+        if (schema.type === 'number') {
+            if (typeof value !== 'number' || isNaN(value)) return false;
+            if (value < schema.min || value > schema.max) return false;
+            return true;
+        }
+
+        if (schema.type === 'string') {
+            if (typeof value !== 'string') return false;
+            if (schema.allowed && !schema.allowed.includes(value)) return false;
+            return true;
+        }
+
+        return false;
+    },
+
+    // Validate entire saved data structure
+    validateSavedData(data) {
+        // Check basic structure
+        if (!data || typeof data !== 'object') {
+            console.log('[Filters] Invalid data: not an object');
+            return false;
+        }
+
+        // Check version
+        if (data.version !== this.STORAGE_VERSION) {
+            console.log(`[Filters] Version mismatch: expected ${this.STORAGE_VERSION}, got ${data.version}`);
+            return false;
+        }
+
+        // Check filters object exists
+        if (!data.filters || typeof data.filters !== 'object') {
+            console.log('[Filters] Invalid data: missing filters object');
+            return false;
+        }
+
+        // Validate each saved filter value
+        for (const [key, value] of Object.entries(data.filters)) {
+            if (!this.filterSchema[key]) {
+                console.log(`[Filters] Unknown filter key: ${key}`);
+                return false;
+            }
+            if (!this.validateFilterValue(key, value)) {
+                console.log(`[Filters] Invalid value for ${key}: ${value}`);
+                return false;
+            }
+        }
+
+        return true;
+    },
+
+    // Get current UI state for all filters
+    getUIState() {
+        return {
+            'price-max': parseInt(document.getElementById('price-max').value, 10),
+            'land-size-min': parseInt(document.getElementById('land-size-min').value, 10),
+            'distance-sydney': parseInt(document.getElementById('distance-sydney').value, 10),
+            'distance-town': parseInt(document.getElementById('distance-town').value, 10),
+            'distance-school': parseInt(document.getElementById('distance-school').value, 10),
+            'drive-time-sydney': document.getElementById('drive-time-sydney').value
+        };
+    },
+
+    // Save current filter state to localStorage
+    save() {
+        try {
+            const data = {
+                version: this.STORAGE_VERSION,
+                filters: this.getUIState(),
+                savedAt: new Date().toISOString()
+            };
+            localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+        } catch (err) {
+            console.warn('[Filters] Failed to save to localStorage:', err);
+        }
+    },
+
+    // Load and restore filter state from localStorage
+    // Returns true if filters were restored, false if reset to defaults
+    load() {
+        try {
+            const raw = localStorage.getItem(this.STORAGE_KEY);
+            if (!raw) {
+                console.log('[Filters] No saved filters found');
+                return false;
+            }
+
+            const data = JSON.parse(raw);
+
+            if (!this.validateSavedData(data)) {
+                console.log('[Filters] Saved data invalid, resetting to defaults');
+                this.clearSaved();
+                return false;
+            }
+
+            // Restore filter values to UI
+            this.restoreUIState(data.filters);
+            console.log('[Filters] Restored saved filters from', data.savedAt);
+            return true;
+        } catch (err) {
+            console.warn('[Filters] Failed to load from localStorage:', err);
+            this.clearSaved();
+            return false;
+        }
+    },
+
+    // Restore UI state from saved filters
+    restoreUIState(filters) {
+        // Restore range sliders
+        if (filters['price-max'] !== undefined) {
+            const el = document.getElementById('price-max');
+            el.value = filters['price-max'];
+            const idx = filters['price-max'];
+            const display = idx === this.priceSteps.length - 1 ? 'Any' : this.formatPrice(this.priceSteps[idx]);
+            this.updateRangeDisplay('price-max', display);
+        }
+
+        if (filters['land-size-min'] !== undefined) {
+            const el = document.getElementById('land-size-min');
+            el.value = filters['land-size-min'];
+            const idx = filters['land-size-min'];
+            const display = idx >= 10 ? 'Any' : `${(idx + 1) * 10} HA`;
+            this.updateRangeDisplay('land-size-min', display);
+        }
+
+        if (filters['distance-sydney'] !== undefined) {
+            const el = document.getElementById('distance-sydney');
+            el.value = filters['distance-sydney'];
+            const display = filters['distance-sydney'] >= 500 ? 'Any' : `${filters['distance-sydney']} km`;
+            this.updateRangeDisplay('distance-sydney', display);
+        }
+
+        if (filters['distance-town'] !== undefined) {
+            const el = document.getElementById('distance-town');
+            el.value = filters['distance-town'];
+            const display = filters['distance-town'] >= 100 ? 'Any' : `${filters['distance-town']} km`;
+            this.updateRangeDisplay('distance-town', display);
+        }
+
+        if (filters['distance-school'] !== undefined) {
+            const el = document.getElementById('distance-school');
+            el.value = filters['distance-school'];
+            const display = filters['distance-school'] >= 50 ? 'Any' : `${filters['distance-school']} km`;
+            this.updateRangeDisplay('distance-school', display);
+        }
+
+        // Restore drive time dropdown (but don't trigger isochrone load yet)
+        if (filters['drive-time-sydney'] !== undefined) {
+            document.getElementById('drive-time-sydney').value = filters['drive-time-sydney'];
+        }
+    },
+
+    // Clear saved filters from localStorage
+    clearSaved() {
+        try {
+            localStorage.removeItem(this.STORAGE_KEY);
+            console.log('[Filters] Cleared saved filters');
+        } catch (err) {
+            console.warn('[Filters] Failed to clear localStorage:', err);
+        }
     }
 };

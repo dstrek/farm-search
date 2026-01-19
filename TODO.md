@@ -88,7 +88,7 @@
 ### Low Priority
 - [ ] Add error handling UI (toast notifications)
 - [ ] Add property image lazy loading
-- [ ] Cache filter options in localStorage
+- [x] Cache filter options in localStorage (with schema versioning for auto-reset)
 
 ---
 

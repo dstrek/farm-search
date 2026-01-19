@@ -45,6 +45,10 @@ make deploy       # Build and deploy to production
 make setup-server # Initial server setup (run once)
 ```
 
+## Task Management
+
+Feature development and tasks are tracked in `TODO.md`. Check this file for pending work and update it as features are completed.
+
 ## Development Guidelines
 
 ### Go Code
