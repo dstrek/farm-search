@@ -94,8 +94,19 @@ const PropertyMap = {
                 source: this.isochroneSourceId,
                 paint: {
                     'fill-color': '#2563eb',
-                    'fill-opacity': 0.2,
-                    'fill-outline-color': '#1d4ed8'
+                    'fill-opacity': 0.1
+                }
+            });
+
+            // Add darker border for isochrone
+            this.map.addLayer({
+                id: this.isochroneLayerId + '-border',
+                type: 'line',
+                source: this.isochroneSourceId,
+                paint: {
+                    'line-color': '#1e40af',
+                    'line-width': 2,
+                    'line-opacity': 0.8
                 }
             });
 

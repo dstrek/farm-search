@@ -132,7 +132,7 @@ const Filters = {
         document.getElementById('drive-time-sydney').addEventListener('change', (e) => {
             const minutes = e.target.value;
             if (typeof PropertyMap !== 'undefined') {
-                PropertyMap.setIsochrone('sydney', minutes);
+                PropertyMap.setIsochrone('sutherland', minutes);
             }
         });
     },

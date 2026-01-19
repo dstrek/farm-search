@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// IsochroneGenerator generates driving time isochrones using OSRM
+// IsochroneGenerator generates driving time isochrones using Valhalla
 type IsochroneGenerator struct {
 	client  *http.Client
 	baseURL string
@@ -32,12 +32,11 @@ type GeoJSONGeometry struct {
 	Coordinates json.RawMessage `json:"coordinates"`
 }
 
-// NewIsochroneGenerator creates a new isochrone generator
-// Uses the public OSRM demo server or a self-hosted instance
+// NewIsochroneGenerator creates a new isochrone generator using Valhalla
+// Pass empty string to use the public Valhalla server (limited to 90 min)
+// Pass a URL like "http://localhost:8002" for a local instance (no limit)
 func NewIsochroneGenerator(baseURL string) *IsochroneGenerator {
 	if baseURL == "" {
-		// Use Valhalla public API for isochrones (OSRM doesn't have native isochrone support)
-		// Alternative: use openrouteservice.org
 		baseURL = "https://valhalla1.openstreetmap.de"
 	}
 	return &IsochroneGenerator{
@@ -52,7 +51,6 @@ func NewIsochroneGenerator(baseURL string) *IsochroneGenerator {
 // lat, lng: center point coordinates
 // minutes: driving time in minutes
 func (g *IsochroneGenerator) GenerateIsochrone(ctx context.Context, lat, lng float64, minutes int) (*GeoJSONFeatureCollection, error) {
-	// Valhalla isochrone API format
 	url := fmt.Sprintf(
 		"%s/isochrone?json={\"locations\":[{\"lat\":%f,\"lon\":%f}],\"costing\":\"auto\",\"contours\":[{\"time\":%d}],\"polygons\":true}",
 		g.baseURL, lat, lng, minutes,
@@ -97,17 +95,17 @@ func (g *IsochroneGenerator) GenerateIsochrone(ctx context.Context, lat, lng flo
 	return &result, nil
 }
 
-// Sydney CBD coordinates
-var SydneyCBD = struct {
+// Sutherland, NSW coordinates (origin point for drive time calculations)
+var Sutherland = struct {
 	Lat float64
 	Lng float64
 }{
-	Lat: -33.8688,
-	Lng: 151.2093,
+	Lat: -34.0309,
+	Lng: 151.0579,
 }
 
-// GenerateSydneyIsochrones generates isochrones for Sydney at specified intervals
-func (g *IsochroneGenerator) GenerateSydneyIsochrones(ctx context.Context, intervals []int) (map[int]*GeoJSONFeatureCollection, error) {
+// GenerateSutherlandIsochrones generates isochrones for Sutherland at specified intervals
+func (g *IsochroneGenerator) GenerateSutherlandIsochrones(ctx context.Context, intervals []int) (map[int]*GeoJSONFeatureCollection, error) {
 	results := make(map[int]*GeoJSONFeatureCollection)
 
 	for _, mins := range intervals {
@@ -117,7 +115,7 @@ func (g *IsochroneGenerator) GenerateSydneyIsochrones(ctx context.Context, inter
 		default:
 		}
 
-		iso, err := g.GenerateIsochrone(ctx, SydneyCBD.Lat, SydneyCBD.Lng, mins)
+		iso, err := g.GenerateIsochrone(ctx, Sutherland.Lat, Sutherland.Lng, mins)
 		if err != nil {
 			return results, fmt.Errorf("failed to generate %d min isochrone: %w", mins, err)
 		}

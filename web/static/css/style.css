@@ -175,6 +175,18 @@ select {
     background: var(--border-color);
 }
 
+/* Overlays section */
+.overlays {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.overlays h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
 /* Results Info */
 .results-info {
     padding: 16px 20px;

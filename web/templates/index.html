@@ -43,10 +43,17 @@
                     <input type="range" id="distance-school" min="0" max="50" value="50">
                 </div>
 
+                <div class="filter-actions">
+                    <button id="clear-filters" class="btn btn-secondary" style="flex: 1;">Reset Filters</button>
+                </div>
+            </div>
+
+            <div class="overlays">
+                <h2>Overlays</h2>
                 <div class="filter-group">
-                    <label for="drive-time-sydney">Drive time from Sydney</label>
+                    <label for="drive-time-sydney">Drive time from Sutherland</label>
                     <select id="drive-time-sydney">
-                        <option value="">Any</option>
+                        <option value="">None</option>
                         <option value="15">15 minutes</option>
                         <option value="30">30 minutes</option>
                         <option value="45">45 minutes</option>
@@ -55,11 +62,11 @@
                         <option value="90">1 hr 30 min</option>
                         <option value="105">1 hr 45 min</option>
                         <option value="120">2 hours</option>
+                        <option value="135">2 hr 15 min</option>
+                        <option value="150">2 hr 30 min</option>
+                        <option value="165">2 hr 45 min</option>
+                        <option value="180">3 hours</option>
                     </select>
-                </div>
-
-                <div class="filter-actions">
-                    <button id="clear-filters" class="btn btn-secondary" style="flex: 1;">Reset Filters</button>
                 </div>
             </div>
 

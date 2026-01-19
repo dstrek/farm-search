@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"farm-search/internal/db"
 	"farm-search/internal/geo"
@@ -47,6 +48,7 @@ func printUsage() {
 
 func generateIsochrones() {
 	outputDir := flag.String("output", "web/static/data/isochrones", "Output directory")
+	valhallaURL := flag.String("valhalla-url", "", "Valhalla server URL (e.g., http://localhost:8002 for local, no time limit)")
 	flag.Parse()
 
 	if err := os.MkdirAll(*outputDir, 0755); err != nil {
@@ -54,22 +56,30 @@ func generateIsochrones() {
 	}
 
 	ctx := context.Background()
-	gen := geo.NewIsochroneGenerator("")
 
-	intervals := []int{15, 30, 45, 60, 75, 90, 105, 120}
+	var gen *geo.IsochroneGenerator
+	if *valhallaURL != "" {
+		log.Printf("Using Valhalla at %s (no time limit)", *valhallaURL)
+		gen = geo.NewIsochroneGenerator(*valhallaURL)
+	} else {
+		log.Println("Using public Valhalla API (max 90 min)")
+		gen = geo.NewIsochroneGenerator("")
+	}
 
-	log.Println("Generating Sydney isochrones...")
+	intervals := []int{15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180}
+
+	log.Println("Generating Sutherland isochrones...")
 
 	for _, mins := range intervals {
 		log.Printf("Generating %d minute isochrone...", mins)
 
-		iso, err := gen.GenerateIsochrone(ctx, geo.SydneyCBD.Lat, geo.SydneyCBD.Lng, mins)
+		iso, err := gen.GenerateIsochrone(ctx, geo.Sutherland.Lat, geo.Sutherland.Lng, mins)
 		if err != nil {
 			log.Printf("Failed to generate %d min isochrone: %v", mins, err)
 			continue
 		}
 
-		filename := filepath.Join(*outputDir, fmt.Sprintf("sydney_%d.geojson", mins))
+		filename := filepath.Join(*outputDir, fmt.Sprintf("sutherland_%d.geojson", mins))
 		data, _ := json.MarshalIndent(iso, "", "  ")
 
 		if err := os.WriteFile(filename, data, 0644); err != nil {
@@ -78,6 +88,9 @@ func generateIsochrones() {
 		}
 
 		log.Printf("Saved %s", filename)
+
+		// Rate limiting
+		time.Sleep(1 * time.Second)
 	}
 
 	log.Println("Done!")

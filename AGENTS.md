@@ -79,10 +79,66 @@ curl http://localhost:8080/api/filters/options
 ## External Services
 
 - **Nominatim**: Geocoding (free, rate-limited to 1 req/sec)
-- **Valhalla**: Isochrone generation (public OSM instance)
+- **Valhalla**: Isochrone generation (local Docker instance or public OSM server)
 - **FarmProperty.com.au**: Primary property listing source (no bot protection)
 - **FarmBuy.com**: Secondary property listing source (implemented, no bot protection)
 - **realestate.com.au**: Requires headless browser (Kasada bot protection)
+
+## Isochrone Generation
+
+Isochrones (drive-time polygons from Sutherland, NSW) are pre-generated and stored as GeoJSON files.
+
+### Generate Isochrones
+
+```bash
+# Using public Valhalla (max 90 min)
+go run cmd/tools/main.go isochrones
+
+# Using local Valhalla (no time limit, supports up to 180 min)
+go run cmd/tools/main.go isochrones -valhalla-url="http://localhost:8002"
+```
+
+Current intervals: 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180 minutes.
+
+### Local Valhalla Setup (for >90 min isochrones)
+
+```bash
+# Install Docker (Ubuntu)
+sudo apt-get install -y docker.io
+sudo systemctl start docker
+
+# Create data directory
+mkdir -p ~/valhalla_tiles
+
+# Start Valhalla with Australia OSM data (first run downloads ~1GB and builds tiles ~30 min)
+sudo docker run -dt --name valhalla \
+  -p 8002:8002 \
+  -v ~/valhalla_tiles:/custom_files \
+  -e tile_urls=https://download.geofabrik.de/australia-oceania/australia-latest.osm.pbf \
+  ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+
+# Monitor tile build progress
+sudo docker logs -f valhalla
+
+# Once ready, update config for longer isochrones (default max is 120 min)
+sudo python3 -c "
+import json
+with open('$HOME/valhalla_tiles/valhalla.json', 'r') as f:
+    config = json.load(f)
+config['service_limits']['isochrone']['max_time_contour'] = 240
+with open('$HOME/valhalla_tiles/valhalla.json', 'w') as f:
+    json.dump(config, f, indent=2)
+"
+sudo docker restart valhalla
+```
+
+### Managing Valhalla
+
+```bash
+sudo docker stop valhalla   # Stop (tiles preserved)
+sudo docker start valhalla  # Start again
+sudo docker rm valhalla     # Remove container (tiles persist in ~/valhalla_tiles)
+```
 
 ## Deployment
 
@@ -121,3 +177,4 @@ The systemd service is configured to restart automatically:
 - Respect rate limits when scraping or geocoding
 - Isochrone GeoJSON files stored in `web/static/data/isochrones/`
 - Distance calculations use Haversine formula (straight-line, not driving)
+- Local Valhalla tiles are stored in `~/valhalla_tiles/` (persists across container restarts)
