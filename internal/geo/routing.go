@@ -87,8 +87,11 @@ func (r *Router) GetRoute(ctx context.Context, fromLat, fromLng, toLat, toLng fl
 		return nil, fmt.Errorf("failed to parse route response: %w", err)
 	}
 
+	// Apply 10% buffer to account for traffic, stops, and real-world conditions
+	durationMins := (result.Trip.Summary.Time / 60.0) * 1.1
+
 	return &RouteResult{
-		DurationMins: result.Trip.Summary.Time / 60.0, // Convert seconds to minutes
+		DurationMins: durationMins,
 		DistanceKm:   result.Trip.Summary.Length,
 	}, nil
 }
