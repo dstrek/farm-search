@@ -162,6 +162,9 @@ const App = {
             PropertyMap.addPropertyMarkers(data.properties, (id) => {
                 this.showPropertyDetails(id);
             });
+            
+            // Update map filters so boundaries match visible properties
+            PropertyMap.setFilters(filters);
 
             Filters.updateResultsCount(data.count);
 

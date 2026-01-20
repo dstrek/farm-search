@@ -549,25 +549,95 @@ func (db *DB) GetCadastralLotCount() (int, error) {
 	return count, err
 }
 
-// GetBoundariesInBounds returns cadastral lot boundaries for properties within the given map bounds
+// GetBoundariesInBounds returns cadastral lot boundaries for properties matching the filter
 // Returns a list of lots with their geometry (GeoJSON) and associated property IDs
-// Checks both property coordinates and lot centroid to ensure boundaries show when zoomed in
-func (db *DB) GetBoundariesInBounds(swLat, swLng, neLat, neLng float64) ([]models.CadastralLot, error) {
+// Applies the same filters as ListProperties to ensure boundaries match visible properties
+func (db *DB) GetBoundariesInBounds(f PropertyFilter) ([]models.CadastralLot, error) {
+	// Build base query with same joins as ListProperties for filtering
 	query := `
 		SELECT DISTINCT cl.id, cl.lot_id_string, cl.lot_number, cl.plan_label, 
 			   cl.area_sqm, cl.geometry, cl.centroid_lat, cl.centroid_lng, cl.fetched_at
 		FROM cadastral_lots cl
 		JOIN property_lots pl ON cl.id = pl.lot_id
 		JOIN properties p ON pl.property_id = p.id
+		LEFT JOIN property_distances pd_sydney ON p.id = pd_sydney.property_id 
+			AND pd_sydney.target_type = 'capital' AND pd_sydney.target_name = 'Sydney'
+		LEFT JOIN property_distances pd_school ON p.id = pd_school.property_id 
+			AND pd_school.target_type = 'school'
 		LEFT JOIN property_links plink ON p.id = plink.duplicate_id
-		WHERE plink.duplicate_id IS NULL
-		  AND (
-		    (p.latitude BETWEEN ? AND ? AND p.longitude BETWEEN ? AND ?)
-		    OR (cl.centroid_lat BETWEEN ? AND ? AND cl.centroid_lng BETWEEN ? AND ?)
-		  )
-		LIMIT 500
+		WHERE p.latitude IS NOT NULL AND p.longitude IS NOT NULL
+			AND plink.duplicate_id IS NULL
 	`
+
+	args := make([]interface{}, 0)
+
+	// Price filters
+	if f.PriceMin != nil {
+		query += " AND (p.price_max >= ? OR p.price_max IS NULL)"
+		args = append(args, *f.PriceMin)
+	}
+	if f.PriceMax != nil {
+		query += " AND (p.price_min <= ? OR p.price_min IS NULL)"
+		args = append(args, *f.PriceMax)
+	}
+
+	// Property type filter
+	if len(f.PropertyTypes) > 0 {
+		placeholders := make([]string, len(f.PropertyTypes))
+		for i, pt := range f.PropertyTypes {
+			placeholders[i] = "?"
+			args = append(args, pt)
+		}
+		query += fmt.Sprintf(" AND p.property_type IN (%s)", strings.Join(placeholders, ","))
+	}
+
+	// Land size filters
+	if f.LandSizeMin != nil {
+		query += " AND p.land_size_sqm >= ?"
+		args = append(args, *f.LandSizeMin)
+	}
+	if f.LandSizeMax != nil {
+		query += " AND p.land_size_sqm <= ?"
+		args = append(args, *f.LandSizeMax)
+	}
+
+	// Distance filters
+	if f.DistanceSydneyMax != nil {
+		query += " AND pd_sydney.distance_km <= ?"
+		args = append(args, *f.DistanceSydneyMax)
+	}
+	if f.DistanceTownMax != nil {
+		query += " AND p.nearest_town_1_km <= ?"
+		args = append(args, *f.DistanceTownMax)
+	}
+	if f.DistanceSchoolMax != nil {
+		query += " AND pd_school.distance_km <= ?"
+		args = append(args, *f.DistanceSchoolMax)
+	}
+
+	// Drive time filters
+	if f.DriveTimeSydneyMax != nil {
+		query += " AND p.drive_time_sydney <= ?"
+		args = append(args, *f.DriveTimeSydneyMax)
+	}
+	if f.DriveTimeTownMax != nil {
+		query += " AND p.nearest_town_1_mins <= ?"
+		args = append(args, *f.DriveTimeTownMax)
+	}
+
+	// Map bounds filter - check both property coords and lot centroid
+	if f.SWLat != nil && f.SWLng != nil && f.NELat != nil && f.NELng != nil {
+		query += ` AND (
+			(p.latitude BETWEEN ? AND ? AND p.longitude BETWEEN ? AND ?)
+			OR (cl.centroid_lat BETWEEN ? AND ? AND cl.centroid_lng BETWEEN ? AND ?)
+		)`
+		args = append(args, *f.SWLat, *f.NELat, *f.SWLng, *f.NELng)
+		args = append(args, *f.SWLat, *f.NELat, *f.SWLng, *f.NELng)
+	}
+
+	query += " LIMIT 500"
+
 	var lots []models.CadastralLot
-	err := db.Select(&lots, query, swLat, neLat, swLng, neLng, swLat, neLat, swLng, neLng)
+	err := db.Select(&lots, query, args...)
 	return lots, err
 }

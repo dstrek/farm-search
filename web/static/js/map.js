@@ -8,6 +8,7 @@ const PropertyMap = {
     onViewDetailsCallback: null,
     ready: false,     // Track if map is fully initialized
     readyCallbacks: [], // Callbacks to run when ready
+    currentFilters: {},  // Current filter state for boundary loading
     isochroneLayerId: 'isochrone-layer',
     isochroneSourceId: 'isochrone-source',
     propertiesSourceId: 'properties-source',
@@ -367,8 +368,18 @@ const PropertyMap = {
         });
     },
 
+    // Set current filters (called by app when filters change)
+    setFilters(filters) {
+        this.currentFilters = filters || {};
+        // Reload boundaries with new filters if map is ready
+        if (this.ready) {
+            this.loadBoundariesIfNeeded();
+        }
+    },
+
     // Load property boundaries when zoomed in enough
     async loadBoundariesIfNeeded() {
+        if (!this.map || !this.ready) return;
         const zoom = this.map.getZoom();
         
         // Clear boundaries if zoomed out
@@ -386,7 +397,7 @@ const PropertyMap = {
 
         try {
             const bounds = this.getBoundsString();
-            const geojson = await API.getBoundaries(bounds, zoom);
+            const geojson = await API.getBoundaries(bounds, zoom, this.currentFilters);
             
             const source = this.map.getSource(this.boundariesSourceId);
             if (source && geojson) {

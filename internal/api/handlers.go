@@ -23,72 +23,77 @@ func NewHandlers(database *db.DB) *Handlers {
 	return &Handlers{db: database}
 }
 
-// ListProperties handles GET /api/properties
-func (h *Handlers) ListProperties(w http.ResponseWriter, r *http.Request) {
-	q := r.URL.Query()
-
+// parsePropertyFilter extracts filter parameters from query string
+func parsePropertyFilter(q map[string][]string) db.PropertyFilter {
 	filter := db.PropertyFilter{}
 
+	get := func(key string) string {
+		if vals, ok := q[key]; ok && len(vals) > 0 {
+			return vals[0]
+		}
+		return ""
+	}
+
 	// Parse price filters
-	if v := q.Get("price_min"); v != "" {
+	if v := get("price_min"); v != "" {
 		if val, err := strconv.ParseInt(v, 10, 64); err == nil {
 			filter.PriceMin = &val
 		}
 	}
-	if v := q.Get("price_max"); v != "" {
+	if v := get("price_max"); v != "" {
 		if val, err := strconv.ParseInt(v, 10, 64); err == nil {
 			filter.PriceMax = &val
 		}
 	}
 
 	// Parse property types
-	if v := q.Get("type"); v != "" {
+	if v := get("type"); v != "" {
 		filter.PropertyTypes = strings.Split(v, ",")
 	}
 
 	// Parse land size filters
-	if v := q.Get("land_size_min"); v != "" {
+	if v := get("land_size_min"); v != "" {
 		if val, err := strconv.ParseFloat(v, 64); err == nil {
 			filter.LandSizeMin = &val
 		}
 	}
-	if v := q.Get("land_size_max"); v != "" {
+	if v := get("land_size_max"); v != "" {
 		if val, err := strconv.ParseFloat(v, 64); err == nil {
 			filter.LandSizeMax = &val
 		}
 	}
 
 	// Parse distance filters
-	if v := q.Get("distance_sydney_max"); v != "" {
+	if v := get("distance_sydney_max"); v != "" {
 		if val, err := strconv.ParseFloat(v, 64); err == nil {
 			filter.DistanceSydneyMax = &val
 		}
 	}
-	if v := q.Get("distance_town_max"); v != "" {
+	if v := get("distance_town_max"); v != "" {
 		if val, err := strconv.ParseFloat(v, 64); err == nil {
 			filter.DistanceTownMax = &val
 		}
 	}
-	if v := q.Get("distance_school_max"); v != "" {
+	if v := get("distance_school_max"); v != "" {
 		if val, err := strconv.ParseFloat(v, 64); err == nil {
 			filter.DistanceSchoolMax = &val
 		}
 	}
 
 	// Parse drive time filters
-	if v := q.Get("drive_time_sydney_max"); v != "" {
+	if v := get("drive_time_sydney_max"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil {
 			filter.DriveTimeSydneyMax = &val
 		}
 	}
-	if v := q.Get("drive_time_town_max"); v != "" {
+	if v := get("drive_time_town_max"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil {
 			filter.DriveTimeTownMax = &val
 		}
 	}
 
 	// Parse map bounds (sw_lat,sw_lng,ne_lat,ne_lng)
-	if v := q.Get("bounds"); v != "" {
+	if v := get("bounds"); v != "" {
 		parts := strings.Split(v, ",")
 		if len(parts) == 4 {
 			swLat, _ := strconv.ParseFloat(parts[0], 64)
@@ -103,16 +108,23 @@ func (h *Handlers) ListProperties(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse pagination
-	if v := q.Get("limit"); v != "" {
+	if v := get("limit"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil && val > 0 && val <= 500 {
 			filter.Limit = val
 		}
 	}
-	if v := q.Get("offset"); v != "" {
+	if v := get("offset"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil && val >= 0 {
 			filter.Offset = val
 		}
 	}
+
+	return filter
+}
+
+// ListProperties handles GET /api/properties
+func (h *Handlers) ListProperties(w http.ResponseWriter, r *http.Request) {
+	filter := parsePropertyFilter(r.URL.Query())
 
 	properties, err := h.db.ListProperties(filter)
 	if err != nil {
@@ -235,7 +247,7 @@ func (h *Handlers) GetRoute(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetBoundaries handles GET /api/boundaries
-// Returns cadastral lot boundaries as GeoJSON for properties within map bounds
+// Returns cadastral lot boundaries as GeoJSON for properties matching filters
 func (h *Handlers) GetBoundaries(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
@@ -246,23 +258,10 @@ func (h *Handlers) GetBoundaries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parts := strings.Split(boundsStr, ",")
-	if len(parts) != 4 {
-		http.Error(w, "bounds must have 4 values: sw_lat,sw_lng,ne_lat,ne_lng", http.StatusBadRequest)
-		return
-	}
+	// Parse all filters (same as properties endpoint)
+	filter := parsePropertyFilter(q)
 
-	swLat, err1 := strconv.ParseFloat(parts[0], 64)
-	swLng, err2 := strconv.ParseFloat(parts[1], 64)
-	neLat, err3 := strconv.ParseFloat(parts[2], 64)
-	neLng, err4 := strconv.ParseFloat(parts[3], 64)
-
-	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
-		http.Error(w, "invalid bounds values", http.StatusBadRequest)
-		return
-	}
-
-	// Parse zoom level (optional)
+	// Parse zoom level and add buffer at high zoom
 	zoom := 0.0
 	if v := q.Get("zoom"); v != "" {
 		zoom, _ = strconv.ParseFloat(v, 64)
@@ -270,21 +269,25 @@ func (h *Handlers) GetBoundaries(w http.ResponseWriter, r *http.Request) {
 
 	// Add buffer to bounds only at high zoom levels (14+) to catch large properties
 	// whose centroid is just outside viewport when panning
-	if zoom >= 14 {
-		latSize := neLat - swLat
-		lngSize := neLng - swLng
+	if zoom >= 14 && filter.SWLat != nil && filter.NELat != nil {
+		latSize := *filter.NELat - *filter.SWLat
+		lngSize := *filter.NELng - *filter.SWLng
 		buffer := latSize
 		if lngSize > buffer {
 			buffer = lngSize
 		}
 		buffer *= 2
-		swLat -= buffer
-		swLng -= buffer
-		neLat += buffer
-		neLng += buffer
+		swLat := *filter.SWLat - buffer
+		swLng := *filter.SWLng - buffer
+		neLat := *filter.NELat + buffer
+		neLng := *filter.NELng + buffer
+		filter.SWLat = &swLat
+		filter.SWLng = &swLng
+		filter.NELat = &neLat
+		filter.NELng = &neLng
 	}
 
-	lots, err := h.db.GetBoundariesInBounds(swLat, swLng, neLat, neLng)
+	lots, err := h.db.GetBoundariesInBounds(filter)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -68,12 +68,29 @@ const API = {
     },
 
     // Fetch property boundaries (cadastral lots) within map bounds
-    async getBoundaries(bounds, zoom) {
-        let url = `${this.baseUrl}/boundaries?bounds=${bounds}`;
+    // Accepts same filters as getProperties to ensure boundaries match visible properties
+    async getBoundaries(bounds, zoom, filters = {}) {
+        const params = new URLSearchParams();
+        params.set('bounds', bounds);
         if (zoom !== undefined) {
-            url += `&zoom=${zoom}`;
+            params.set('zoom', zoom);
         }
-        const response = await fetch(url);
+        
+        // Add same filters as properties endpoint
+        if (filters.priceMin) params.set('price_min', filters.priceMin);
+        if (filters.priceMax) params.set('price_max', filters.priceMax);
+        if (filters.types && filters.types.length > 0) {
+            params.set('type', filters.types.join(','));
+        }
+        if (filters.landSizeMin) params.set('land_size_min', filters.landSizeMin);
+        if (filters.landSizeMax) params.set('land_size_max', filters.landSizeMax);
+        if (filters.distanceSydneyMax) params.set('distance_sydney_max', filters.distanceSydneyMax);
+        if (filters.distanceTownMax) params.set('distance_town_max', filters.distanceTownMax);
+        if (filters.distanceSchoolMax) params.set('distance_school_max', filters.distanceSchoolMax);
+        if (filters.driveTimeSydneyMax) params.set('drive_time_sydney_max', filters.driveTimeSydneyMax);
+        if (filters.driveTimeTownMax) params.set('drive_time_town_max', filters.driveTimeTownMax);
+
+        const response = await fetch(`${this.baseUrl}/boundaries?${params}`);
         if (!response.ok) {
             throw new Error(`Failed to fetch boundaries: ${response.statusText}`);
         }
