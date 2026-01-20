@@ -125,19 +125,78 @@ func (c *CadastralClient) FetchLotsInBounds(ctx context.Context, minLng, minLat,
 	return lots, nil
 }
 
-// FetchLotsAtPoint fetches cadastral lots that contain the given point
+// FetchLotsAtPoint fetches cadastral lots that contain or are near the given point.
+// First tries an exact point intersection, then falls back to a small bounding box
+// search (~200m radius) to handle cases where property coordinates are approximate
+// (e.g., geocoded to a road rather than the property itself).
 func (c *CadastralClient) FetchLotsAtPoint(ctx context.Context, lng, lat float64) ([]LotFeature, error) {
-	// Build query parameters for point intersection
+	// First try exact point intersection
+	lots, err := c.fetchLotsWithGeometry(ctx, fmt.Sprintf("%f,%f", lng, lat), "esriGeometryPoint", 10)
+	if err != nil {
+		return nil, err
+	}
+
+	// If point query found lots, return them
+	if len(lots) > 0 {
+		return lots, nil
+	}
+
+	// Fall back to bounding box search (~500m radius)
+	// At Australian latitudes, 0.005 degrees ≈ 500m
+	buffer := 0.005
+	minLng := lng - buffer
+	maxLng := lng + buffer
+	minLat := lat - buffer
+	maxLat := lat + buffer
+
+	lots, err = c.fetchLotsWithGeometry(ctx,
+		fmt.Sprintf("%f,%f,%f,%f", minLng, minLat, maxLng, maxLat),
+		"esriGeometryEnvelope", 20)
+	if err != nil {
+		return nil, err
+	}
+
+	// Filter to lots whose centroid is within ~200m of the search point
+	if len(lots) > 0 {
+		filtered := make([]LotFeature, 0)
+		for _, lot := range lots {
+			if lot.Geometry == nil {
+				continue
+			}
+			centLat, centLng, err := CalculateLotCentroid(lot.Geometry)
+			if err != nil {
+				continue
+			}
+			// Simple distance check (not exact but good enough for filtering)
+			if abs(centLat-lat) < buffer && abs(centLng-lng) < buffer {
+				filtered = append(filtered, lot)
+			}
+		}
+		return filtered, nil
+	}
+
+	return lots, nil
+}
+
+func abs(x float64) float64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// fetchLotsWithGeometry performs the actual API query with the given geometry
+func (c *CadastralClient) fetchLotsWithGeometry(ctx context.Context, geometry, geometryType string, maxResults int) ([]LotFeature, error) {
 	params := url.Values{}
 	params.Set("where", "1=1")
 	params.Set("outFields", "lotnumber,planlabel,lotidstring,shape_Area")
-	params.Set("geometry", fmt.Sprintf("%f,%f", lng, lat))
-	params.Set("geometryType", "esriGeometryPoint")
+	params.Set("geometry", geometry)
+	params.Set("geometryType", geometryType)
 	params.Set("inSR", "4326")
 	params.Set("outSR", "4326")
 	params.Set("spatialRel", "esriSpatialRelIntersects")
 	params.Set("f", "geojson")
-	params.Set("resultRecordCount", "10") // A point should only intersect a few lots
+	params.Set("resultRecordCount", fmt.Sprintf("%d", maxResults))
 
 	reqURL := fmt.Sprintf("%s?%s", c.baseURL, params.Encode())
 
