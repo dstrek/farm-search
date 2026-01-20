@@ -2,7 +2,7 @@
 
 const PropertyMap = {
     map: null,
-    popup: null,
+
     properties: [],  // Store properties for click lookups
     propertiesById: new Map(),  // Quick lookup by ID
     onViewDetailsCallback: null,
@@ -107,13 +107,6 @@ const PropertyMap = {
         // Add scale
         this.map.addControl(new maplibregl.ScaleControl(), 'bottom-right');
 
-        // Initialize popup
-        this.popup = new maplibregl.Popup({
-            closeButton: true,
-            closeOnClick: false,
-            maxWidth: '300px'
-        });
-
         // Setup sources and layers when map loads
         this.map.on('load', () => {
             // Isochrone source
@@ -211,14 +204,13 @@ const PropertyMap = {
                 this.loadBoundariesIfNeeded();
             });
 
-            // Click handler for property markers
+            // Click handler for property markers - opens sidebar directly
             this.map.on('click', this.propertiesLayerId, (e) => {
                 if (e.features && e.features.length > 0) {
                     const feature = e.features[0];
                     const propertyId = feature.properties.id;
-                    const property = this.propertiesById.get(propertyId);
-                    if (property) {
-                        this.showPropertyPopup(property);
+                    if (this.onViewDetailsCallback) {
+                        this.onViewDetailsCallback(propertyId);
                     }
                 }
             });
@@ -282,46 +274,6 @@ const PropertyMap = {
                 source.setData(geojson);
             }
         });
-    },
-
-    // Show popup for a property
-    showPropertyPopup(property) {
-        // Format drive time if available
-        let driveTimeHtml = '';
-        if (property.drive_time_sydney) {
-            const hours = Math.floor(property.drive_time_sydney / 60);
-            const mins = property.drive_time_sydney % 60;
-            const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
-            driveTimeHtml = `<div class="drive-time">${timeStr} to Sutherland</div>`;
-        }
-
-        const html = `
-            <div class="popup-content">
-                <h3>${property.address || property.suburb || 'Property'}</h3>
-                <div class="price">${property.price_text || 'Contact Agent'}</div>
-                <div class="details">
-                    ${property.property_type ? `<span>${property.property_type}</span>` : ''}
-                    ${property.suburb ? `<span>${property.suburb}</span>` : ''}
-                </div>
-                ${driveTimeHtml}
-                <button class="view-btn" data-id="${property.id}">View Details</button>
-            </div>
-        `;
-
-        this.popup
-            .setLngLat([property.lng, property.lat])
-            .setHTML(html)
-            .addTo(this.map);
-
-        // Add click handler for view details button
-        setTimeout(() => {
-            const btn = document.querySelector('.popup-content .view-btn');
-            if (btn && this.onViewDetailsCallback) {
-                btn.addEventListener('click', () => {
-                    this.onViewDetailsCallback(property.id);
-                });
-            }
-        }, 0);
     },
 
     // Update isochrone layer

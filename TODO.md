@@ -91,13 +91,12 @@
 
 ### UI Improvements
 - [x] Reduce left sidebar width (320px → 260px)
-- [ ] Replace popup+modal with right property details sidebar
-  - Add new `<aside id="property-details">` element
-  - CSS: Right sidebar (350-400px), slide in/out animation, adjust map width
-  - Remove popup on marker click, instead open sidebar with full details
-  - Fetch full property details on marker click (same `/api/properties/:id` endpoint)
-  - Close via button, click-outside, or Escape key
-  - Remove or repurpose existing modal code
+- [x] Replace popup+modal with right property details sidebar
+  - Added `<aside id="property-sidebar">` element
+  - CSS: Right sidebar (380px), fixed position
+  - Click marker opens sidebar directly with full details
+  - Close via X button or Escape key
+  - Removed popup and modal code
 - [ ] Property image gallery/carousel
   - Larger primary image display area
   - Thumbnail strip or dot indicators for navigation

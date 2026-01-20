@@ -14,8 +14,8 @@ const App = {
             () => this.loadProperties()
         );
 
-        // Setup modal
-        this.initModal();
+        // Setup property sidebar
+        this.initPropertySidebar();
 
         // Setup layer switcher
         this.initLayerSwitcher();
@@ -66,24 +66,24 @@ const App = {
         await this.loadProperties();
     },
 
-    // Show property details in modal
+    // Show property details in sidebar
     async showPropertyDetails(id) {
-        // Show modal with loading state
+        // Show sidebar with loading state
         const container = document.getElementById('property-detail');
         container.innerHTML = '<div class="loading-spinner" style="margin: 40px auto;"></div>';
-        this.showModal();
+        this.showPropertySidebar();
 
         try {
             const property = await API.getProperty(id);
-            this.renderPropertyModal(property);
+            this.renderPropertySidebar(property);
         } catch (err) {
             console.error('Failed to load property details:', err);
             container.innerHTML = '<p style="color: #dc2626; text-align: center;">Failed to load property details.</p>';
         }
     },
 
-    // Render property details in modal
-    renderPropertyModal(property) {
+    // Render property details in sidebar
+    renderPropertySidebar(property) {
         const container = document.getElementById('property-detail');
 
         let imagesHtml = '';
@@ -162,22 +162,17 @@ const App = {
         `;
     },
 
-    // Initialize modal functionality
-    initModal() {
-        const modal = document.getElementById('property-modal');
-        const closeBtn = modal.querySelector('.modal-close');
+    // Initialize property sidebar functionality
+    initPropertySidebar() {
+        const sidebar = document.getElementById('property-sidebar');
+        const closeBtn = sidebar.querySelector('.sidebar-close');
 
-        closeBtn.addEventListener('click', () => this.hideModal());
+        closeBtn.addEventListener('click', () => this.hidePropertySidebar());
 
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                this.hideModal();
-            }
-        });
-
+        // Close on Escape key
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-                this.hideModal();
+            if (e.key === 'Escape' && !sidebar.classList.contains('hidden')) {
+                this.hidePropertySidebar();
             }
         });
     },
@@ -200,12 +195,12 @@ const App = {
         });
     },
 
-    showModal() {
-        document.getElementById('property-modal').classList.remove('hidden');
+    showPropertySidebar() {
+        document.getElementById('property-sidebar').classList.remove('hidden');
     },
 
-    hideModal() {
-        document.getElementById('property-modal').classList.add('hidden');
+    hidePropertySidebar() {
+        document.getElementById('property-sidebar').classList.add('hidden');
     }
 };
 

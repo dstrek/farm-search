@@ -1,10 +1,21 @@
 # AGENTS.md
 
+## Required: Update Documentation
+
+**Before marking any feature complete, you MUST update:**
+
+1. **`TODO.md`** - Mark tasks complete, add new tasks discovered during implementation
+2. **`SPEC.md`** - Update if you changed:
+   - UI behavior (how users interact with the app)
+   - API endpoints (new, modified, or removed)
+   - Data models or database schema
+   - Frontend components or layout
+
+This is not optional. The feature is not done until docs are updated.
+
 ## Task Management
 
 Feature development and tasks are tracked in `TODO.md`. Check this file for pending work and update it as features are completed.
-
-When adding new features, ensure `SPEC.md` is kept up to date with any changes to functionality, API endpoints, or user-facing behavior.
 
 ## Project Overview
 

@@ -326,7 +326,7 @@ Get cadastral lot boundaries within map bounds.
 - **Default Center**: NSW (150.086, -34.048)
 - **Default Zoom**: 7.72 (shows regional NSW)
 - **Markers**: Colored circles for each property (color by source: orange=FarmProperty, green=FarmBuy, red=REA)
-- **Popups**: Property summary on marker click with "View Details" button
+- **Property Sidebar**: Clicking a marker opens a right sidebar (380px) with full property details
 - **Isochrone Layer**: Semi-transparent polygon overlay showing drive time from Sutherland
 - **Boundary Layer**: Property cadastral boundaries (visible at zoom 12+)
 
@@ -348,15 +348,18 @@ Width: 260px (collapsible on mobile)
 
 **Persistence**: Filter state is saved to localStorage (`farm-search-filters`) and restored on page load. Schema versioning ensures invalid saved data is cleared automatically.
 
-### Property Modal
+### Property Details Sidebar
 
-Displays full property details when "View Details" is clicked:
+Right sidebar (380px) that opens when clicking a map marker:
 - Address and suburb
 - Price
 - Property type, beds, baths, land size
-- Image gallery (horizontal scroll)
+- Drive time to Sutherland
+- Nearest towns with drive times
+- Image gallery (horizontal scroll, up to 5 images)
 - Description
-- Link to original listing
+- Link to original listing (shows multiple sources if property listed on multiple sites)
+- Close via X button or Escape key
 
 ## Data Sources
 

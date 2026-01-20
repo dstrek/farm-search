@@ -280,80 +280,29 @@ select {
     to { transform: rotate(360deg); }
 }
 
-/* Map Popup */
-.maplibregl-popup-content {
-    padding: 12px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    max-width: 280px;
-}
 
-.popup-content h3 {
-    font-size: 0.875rem;
-    font-weight: 600;
-    margin-bottom: 4px;
-}
 
-.popup-content .price {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--primary-color);
-    margin-bottom: 8px;
-}
-
-.popup-content .details {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-}
-
-.popup-content .view-btn {
-    display: inline-block;
-    padding: 6px 12px;
-    background: var(--primary-color);
-    color: white;
-    text-decoration: none;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    cursor: pointer;
-}
-
-.popup-content .drive-time {
-    font-size: 0.75rem;
-    color: #059669;
-    font-weight: 500;
-    margin-bottom: 8px;
-}
-
-/* Modal */
-.modal {
+/* Property Details Sidebar */
+#property-sidebar {
+    --sidebar-right-width: 380px;
     position: fixed;
     top: 0;
-    left: 0;
-    width: 100%;
+    right: 0;
+    width: var(--sidebar-right-width);
     height: 100%;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: var(--card-bg);
+    border-left: 1px solid var(--border-color);
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.15);
     z-index: 1000;
+    display: flex;
+    flex-direction: column;
 }
 
-.modal.hidden {
+#property-sidebar.hidden {
     display: none;
 }
 
-.modal-content {
-    background: white;
-    border-radius: 12px;
-    max-width: 600px;
-    max-height: 80vh;
-    width: 90%;
-    overflow-y: auto;
-    position: relative;
-}
-
-.modal-close {
+.sidebar-close {
     position: absolute;
     top: 12px;
     right: 12px;
@@ -367,10 +316,19 @@ select {
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.sidebar-close:hover {
+    background: var(--border-color);
 }
 
 #property-detail {
     padding: 24px;
+    padding-top: 56px; /* Space for close button */
+    overflow-y: auto;
+    flex: 1;
 }
 
 #property-detail h2 {
@@ -496,5 +454,10 @@ select {
     #map-container {
         height: 50vh;
         order: 1;
+    }
+
+    #property-sidebar {
+        --sidebar-right-width: 100%;
+        width: 100%;
     }
 }
