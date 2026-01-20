@@ -378,6 +378,21 @@ select {
     font-weight: 500;
 }
 
+#property-detail .nearest-towns .town-item.clickable {
+    cursor: pointer;
+    transition: background-color 0.15s, box-shadow 0.15s;
+}
+
+#property-detail .nearest-towns .town-item.clickable:hover {
+    background: #e2e8f0;
+}
+
+#property-detail .nearest-towns .town-item.clickable.active {
+    background: #2563eb;
+    color: white;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+}
+
 #property-detail .nearest-schools {
     font-size: 0.875rem;
     color: var(--text-muted);
@@ -393,6 +408,21 @@ select {
     margin-bottom: 4px;
     color: var(--text-color);
     font-weight: 500;
+}
+
+#property-detail .nearest-schools .school-item.clickable {
+    cursor: pointer;
+    transition: background-color 0.15s, box-shadow 0.15s;
+}
+
+#property-detail .nearest-schools .school-item.clickable:hover {
+    background: #bae6fd;
+}
+
+#property-detail .nearest-schools .school-item.clickable.active {
+    background: #0284c7;
+    color: white;
+    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
 }
 
 /* Image Gallery */

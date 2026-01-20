@@ -76,4 +76,9 @@ func runMigrations(db *sqlx.DB) {
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2 TEXT")
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_km REAL")
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_mins INTEGER")
+	// Add school coordinate columns for routing
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_1_lat REAL")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_1_lng REAL")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_lat REAL")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_lng REAL")
 }

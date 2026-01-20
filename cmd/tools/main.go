@@ -526,13 +526,14 @@ func calculateNearestSchools() {
 		// Find two nearest schools
 		school1, school2 := schoolData.FindTwoNearestSchools(p.Latitude, p.Longitude)
 
-		// Save to database
+		// Save to database (including coordinates for routing)
 		_, err = database.Exec(`
 			UPDATE properties 
-			SET nearest_school_1 = ?, nearest_school_1_km = ?, 
-			    nearest_school_2 = ?, nearest_school_2_km = ?
+			SET nearest_school_1 = ?, nearest_school_1_km = ?, nearest_school_1_lat = ?, nearest_school_1_lng = ?,
+			    nearest_school_2 = ?, nearest_school_2_km = ?, nearest_school_2_lat = ?, nearest_school_2_lng = ?
 			WHERE id = ?`,
-			school1.Name, school1.DistanceKm, school2.Name, school2.DistanceKm, p.ID)
+			school1.Name, school1.DistanceKm, school1.Latitude, school1.Longitude,
+			school2.Name, school2.DistanceKm, school2.Latitude, school2.Longitude, p.ID)
 
 		if err != nil {
 			log.Printf("[%d/%d] Failed to save for property %d: %v", i+1, len(properties), p.ID, err)
@@ -649,12 +650,25 @@ func calculateSchoolDriveTimes() {
 			}
 		}
 
-		// Save to database
+		// Save to database (also save coordinates for routing if we looked them up)
+		var school1Lat, school1Lng, school2Lat, school2Lng *float64
+		if school1, ok := schoolCoords[p.NearestSchool1]; ok {
+			school1Lat = &school1.Latitude
+			school1Lng = &school1.Longitude
+		}
+		if p.NearestSchool2 != "" {
+			if school2, ok := schoolCoords[p.NearestSchool2]; ok {
+				school2Lat = &school2.Latitude
+				school2Lng = &school2.Longitude
+			}
+		}
+
 		_, err = database.Exec(`
 			UPDATE properties 
-			SET nearest_school_1_mins = ?, nearest_school_2_mins = ?
+			SET nearest_school_1_mins = ?, nearest_school_1_lat = ?, nearest_school_1_lng = ?,
+			    nearest_school_2_mins = ?, nearest_school_2_lat = ?, nearest_school_2_lng = ?
 			WHERE id = ?`,
-			school1Mins, school2Mins, p.ID)
+			school1Mins, school1Lat, school1Lng, school2Mins, school2Lat, school2Lng, p.ID)
 
 		if err != nil {
 			log.Printf("[%d/%d] Failed to save for property %d: %v", i+1, len(properties), p.ID, err)

@@ -412,15 +412,16 @@ const PropertyMap = {
 
     // ==================== Route Display ====================
 
-    // Show route from property to nearest town
-    async showRoute(fromLat, fromLng, townName) {
-        if (!townName) {
+    // Show route from property to a destination
+    // Options: town name (string) OR { town: 'name' } OR { toLat, toLng, name }
+    async showRoute(fromLat, fromLng, options) {
+        if (!options) {
             this.clearRoute();
             return;
         }
 
         try {
-            const geojson = await API.getRoute(fromLat, fromLng, townName);
+            const geojson = await API.getRoute(fromLat, fromLng, options);
             if (geojson) {
                 this.onReady(() => {
                     const source = this.map.getSource(this.routeSourceId);

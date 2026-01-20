@@ -97,9 +97,28 @@ const API = {
         return response.json();
     },
 
-    // Fetch driving route from property to town
-    async getRoute(fromLat, fromLng, townName) {
-        const url = `${this.baseUrl}/route?from_lat=${fromLat}&from_lng=${fromLng}&town=${encodeURIComponent(townName)}`;
+    // Fetch driving route from property to a destination
+    // Can route by town name OR by coordinates
+    // Options: { town: 'TownName' } OR { toLat, toLng, name }
+    async getRoute(fromLat, fromLng, options) {
+        let url;
+        if (typeof options === 'string') {
+            // Legacy: options is a town name
+            url = `${this.baseUrl}/route?from_lat=${fromLat}&from_lng=${fromLng}&town=${encodeURIComponent(options)}`;
+        } else if (options.town) {
+            // Route by town name
+            url = `${this.baseUrl}/route?from_lat=${fromLat}&from_lng=${fromLng}&town=${encodeURIComponent(options.town)}`;
+        } else if (options.toLat !== undefined && options.toLng !== undefined) {
+            // Route by coordinates
+            url = `${this.baseUrl}/route?from_lat=${fromLat}&from_lng=${fromLng}&to_lat=${options.toLat}&to_lng=${options.toLng}`;
+            if (options.name) {
+                url += `&name=${encodeURIComponent(options.name)}`;
+            }
+        } else {
+            console.error('getRoute: invalid options', options);
+            return null;
+        }
+        
         const response = await fetch(url);
         if (!response.ok) {
             return null; // Route may not be available

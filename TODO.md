@@ -122,6 +122,12 @@
   - Replaced distance filter with drive time filter (5-60 min)
   - Display nearest schools in property sidebar (abbreviated "Public School" to "PS")
   - Note: Run `schooldrivetimes` with Valhalla to populate drive times
+- [x] Make nearest towns/schools clickable to show route on map
+  - Removed automatic route display when property sidebar opens
+  - Click on a town name in property details to show route to that town
+  - Click on a school name in property details to show route to that school
+  - Added school coordinates to schema for routing support
+  - Clickable items highlight when active (blue for towns, sky blue for schools)
 
 ### Medium Priority
 - [ ] Add Domain.com.au scraper (may have bot protection)
@@ -138,25 +144,17 @@
 ## Future Ideas
 
 ### Enhanced Filters
-- [ ] Filter by school type (primary/secondary/combined)
 - [ ] Filter by water features (dam, creek, river frontage)
-- [ ] Filter by road access (sealed/unsealed)
 - [ ] Filter by zoning (rural, residential, mixed)
 - [ ] Filter by listing age (new this week, etc.)
-- [ ] "Draw area" filter on map
 
 ### Cadastral Integration
-- [ ] Integrate NSW DCDB property boundaries via WFS
-- [ ] Display lot boundaries when property selected
 - [ ] Show Lot/DP number in property details
 - [ ] Calculate actual land area from cadastral data
 
 ### User Features
 - [ ] Save favorite properties (localStorage)
 - [ ] Email alerts for new listings matching filters
-- [ ] Property comparison view (side by side)
-- [ ] Share property via URL
-- [ ] Print property details
 
 ### Data Enrichment
 - [ ] Soil type data overlay
@@ -167,21 +165,12 @@
 - [ ] Climate/rainfall data
 
 ### Performance
-- [ ] Add Redis caching for API responses
-- [ ] Implement map tile caching
-- [ ] Add database connection pooling
-- [ ] Consider PostgreSQL for larger scale
 - [ ] Add API response compression
 
 ### DevOps
 - [x] Create production deployment scripts
 - [x] Set up systemd service with crash protection
 - [x] Configure Caddy reverse proxy with auto-HTTPS
-- [ ] Add Dockerfile
-- [ ] Add docker-compose.yml
-- [ ] Set up GitHub Actions CI
-- [ ] Add health check endpoint
-- [ ] Add Prometheus metrics
 
 ---
 

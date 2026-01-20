@@ -126,7 +126,11 @@ type PropertyDetail struct {
 	NearestSchool1     *string          `json:"nearest_school_1,omitempty"`      // Name of nearest school
 	NearestSchool1Km   *float64         `json:"nearest_school_1_km,omitempty"`   // Distance to nearest school
 	NearestSchool1Mins *int             `json:"nearest_school_1_mins,omitempty"` // Drive time to nearest school in minutes
+	NearestSchool1Lat  *float64         `json:"nearest_school_1_lat,omitempty"`  // Latitude of nearest school
+	NearestSchool1Lng  *float64         `json:"nearest_school_1_lng,omitempty"`  // Longitude of nearest school
 	NearestSchool2     *string          `json:"nearest_school_2,omitempty"`      // Name of second nearest school
 	NearestSchool2Km   *float64         `json:"nearest_school_2_km,omitempty"`   // Distance to second nearest school
 	NearestSchool2Mins *int             `json:"nearest_school_2_mins,omitempty"` // Drive time to second nearest school in minutes
+	NearestSchool2Lat  *float64         `json:"nearest_school_2_lat,omitempty"`  // Latitude of second nearest school
+	NearestSchool2Lng  *float64         `json:"nearest_school_2_lng,omitempty"`  // Longitude of second nearest school
 }

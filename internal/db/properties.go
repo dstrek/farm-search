@@ -160,8 +160,8 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 			drive_time_sydney,
 			nearest_town_1, nearest_town_1_km, nearest_town_1_mins,
 			nearest_town_2, nearest_town_2_km, nearest_town_2_mins,
-			nearest_school_1, nearest_school_1_km, nearest_school_1_mins,
-			nearest_school_2, nearest_school_2_km, nearest_school_2_mins
+			nearest_school_1, nearest_school_1_km, nearest_school_1_mins, nearest_school_1_lat, nearest_school_1_lng,
+			nearest_school_2, nearest_school_2_km, nearest_school_2_mins, nearest_school_2_lat, nearest_school_2_lng
 		FROM properties WHERE id = ?
 	`
 
@@ -196,9 +196,13 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 		NearestSchool1     *string  `db:"nearest_school_1"`
 		NearestSchool1Km   *float64 `db:"nearest_school_1_km"`
 		NearestSchool1Mins *int     `db:"nearest_school_1_mins"`
+		NearestSchool1Lat  *float64 `db:"nearest_school_1_lat"`
+		NearestSchool1Lng  *float64 `db:"nearest_school_1_lng"`
 		NearestSchool2     *string  `db:"nearest_school_2"`
 		NearestSchool2Km   *float64 `db:"nearest_school_2_km"`
 		NearestSchool2Mins *int     `db:"nearest_school_2_mins"`
+		NearestSchool2Lat  *float64 `db:"nearest_school_2_lat"`
+		NearestSchool2Lng  *float64 `db:"nearest_school_2_lng"`
 	}
 
 	err := db.Get(&p, query, id)
@@ -244,9 +248,13 @@ func (db *DB) GetProperty(id int64) (*models.PropertyDetail, error) {
 		NearestSchool1:     p.NearestSchool1,
 		NearestSchool1Km:   p.NearestSchool1Km,
 		NearestSchool1Mins: p.NearestSchool1Mins,
+		NearestSchool1Lat:  p.NearestSchool1Lat,
+		NearestSchool1Lng:  p.NearestSchool1Lng,
 		NearestSchool2:     p.NearestSchool2,
 		NearestSchool2Km:   p.NearestSchool2Km,
 		NearestSchool2Mins: p.NearestSchool2Mins,
+		NearestSchool2Lat:  p.NearestSchool2Lat,
+		NearestSchool2Lng:  p.NearestSchool2Lng,
 	}, nil
 }
 

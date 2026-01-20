@@ -287,7 +287,9 @@ Manually trigger a scrape job.
 
 ### GET /api/route
 
-Get driving route from a property to a town.
+Get driving route from a property to a destination. Supports two modes:
+1. By town name (looks up coordinates from NSW towns list)
+2. By coordinates (for schools or other destinations)
 
 **Query Parameters:**
 
@@ -295,7 +297,12 @@ Get driving route from a property to a town.
 |-----------|------|-------------|
 | from_lat | float | Property latitude (required) |
 | from_lng | float | Property longitude (required) |
-| town | string | Town name (required) |
+| town | string | Town name (mode 1) |
+| to_lat | float | Destination latitude (mode 2) |
+| to_lng | float | Destination longitude (mode 2) |
+| name | string | Destination name for display (optional, mode 2) |
+
+Either `town` OR `to_lat`+`to_lng` must be provided.
 
 **Response:**
 ```json
@@ -308,7 +315,7 @@ Get driving route from a property to a town.
   "properties": {
     "duration_mins": 45.2,
     "distance_km": 52.3,
-    "town": "Bathurst"
+    "name": "Bathurst"
   }
 }
 ```
@@ -412,10 +419,13 @@ Click on the main carousel image to open a fullscreen modal:
 
 ### Route Display
 
-When a property is selected, a dashed line shows the driving route to the nearest town:
+Routes to towns and schools are shown on demand by clicking:
+- Click on a town name in property details to show the driving route
+- Click on a school name in property details to show the driving route
 - Uses Valhalla routing API (proxied through backend)
-- Styled as dashed rose-colored line
-- Route clears when sidebar is closed or Escape is pressed
+- Styled as solid blue line with white outline
+- Clicked items are highlighted (blue for towns, sky blue for schools)
+- Route clears when sidebar is closed or a new property is selected
 
 ## Data Sources
 

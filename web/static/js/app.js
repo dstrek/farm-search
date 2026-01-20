@@ -289,6 +289,9 @@ const App = {
     await this.loadProperties();
   },
 
+  // Current property being displayed (for route clicks)
+  currentProperty: null,
+
   // Show property details in sidebar
   async showPropertyDetails(id) {
     // Show sidebar with loading state
@@ -299,30 +302,15 @@ const App = {
 
     try {
       const property = await API.getProperty(id);
+      this.currentProperty = property;
       this.renderPropertySidebar(property);
-
-      // Show route to nearest town (by drive time if available, otherwise by distance)
-      let routeTown = null;
-      if (property.nearest_town_1_mins && property.nearest_town_2_mins) {
-        // Both have drive times - pick the faster one
-        routeTown =
-          property.nearest_town_1_mins <= property.nearest_town_2_mins
-            ? property.nearest_town_1
-            : property.nearest_town_2;
-      } else if (property.nearest_town_1) {
-        // Fall back to nearest by distance
-        routeTown = property.nearest_town_1;
-      }
-
-      if (property.lat && property.lng && routeTown) {
-        PropertyMap.showRoute(property.lat, property.lng, routeTown);
-      } else {
-        PropertyMap.clearRoute();
-      }
+      // Clear any previous route when opening a new property
+      PropertyMap.clearRoute();
     } catch (err) {
       console.error("Failed to load property details:", err);
       container.innerHTML =
         '<p style="color: #dc2626; text-align: center;">Failed to load property details.</p>';
+      this.currentProperty = null;
       PropertyMap.clearRoute();
     }
   },
@@ -368,6 +356,7 @@ const App = {
     }
 
     // Format nearest towns if available (show drive time if available, otherwise distance)
+    // Towns are clickable to show route on map
     let nearestTownsHtml = "";
     if (property.nearest_town_1) {
       let town1Info = property.nearest_town_1_mins
@@ -375,7 +364,7 @@ const App = {
         : property.nearest_town_1_km
           ? `${property.nearest_town_1_km.toFixed(0)} km`
           : "?";
-      let townsContent = `<span class="town-item">${property.nearest_town_1} (${town1Info})</span>`;
+      let townsContent = `<span class="town-item clickable" data-town="${property.nearest_town_1}">${property.nearest_town_1} (${town1Info})</span>`;
 
       if (property.nearest_town_2) {
         let town2Info = property.nearest_town_2_mins
@@ -383,22 +372,32 @@ const App = {
           : property.nearest_town_2_km
             ? `${property.nearest_town_2_km.toFixed(0)} km`
             : "?";
-        townsContent += `<span class="town-item">${property.nearest_town_2} (${town2Info})</span>`;
+        townsContent += `<span class="town-item clickable" data-town="${property.nearest_town_2}">${property.nearest_town_2} (${town2Info})</span>`;
       }
 
       nearestTownsHtml = `<div class="nearest-towns">${townsContent}</div>`;
     }
 
     // Format nearest schools if available (only show if drive time is available)
+    // Schools are clickable to show route on map
     // Abbreviate "Public School" to "PS"
     const abbreviateSchool = (name) => name.replace(/ Public School$/i, " PS");
     
     let nearestSchoolsHtml = "";
     if (property.nearest_school_1 && property.nearest_school_1_mins) {
-      let schoolsContent = `<span class="school-item">${abbreviateSchool(property.nearest_school_1)} (${property.nearest_school_1_mins} min)</span>`;
+      // Include coordinates as data attributes for routing
+      let school1Attrs = `data-school="${property.nearest_school_1}"`;
+      if (property.nearest_school_1_lat && property.nearest_school_1_lng) {
+        school1Attrs += ` data-lat="${property.nearest_school_1_lat}" data-lng="${property.nearest_school_1_lng}"`;
+      }
+      let schoolsContent = `<span class="school-item clickable" ${school1Attrs}>${abbreviateSchool(property.nearest_school_1)} (${property.nearest_school_1_mins} min)</span>`;
 
       if (property.nearest_school_2 && property.nearest_school_2_mins) {
-        schoolsContent += `<span class="school-item">${abbreviateSchool(property.nearest_school_2)} (${property.nearest_school_2_mins} min)</span>`;
+        let school2Attrs = `data-school="${property.nearest_school_2}"`;
+        if (property.nearest_school_2_lat && property.nearest_school_2_lng) {
+          school2Attrs += ` data-lat="${property.nearest_school_2_lat}" data-lng="${property.nearest_school_2_lng}"`;
+        }
+        schoolsContent += `<span class="school-item clickable" ${school2Attrs}>${abbreviateSchool(property.nearest_school_2)} (${property.nearest_school_2_mins} min)</span>`;
       }
 
       nearestSchoolsHtml = `<div class="nearest-schools">${schoolsContent}</div>`;
@@ -422,6 +421,34 @@ const App = {
 
     // Initialize image gallery
     ImageGallery.init(container);
+
+    // Add click handlers for towns (to show route)
+    container.querySelectorAll(".town-item.clickable").forEach((el) => {
+      el.addEventListener("click", () => {
+        const townName = el.dataset.town;
+        if (property.lat && property.lng && townName) {
+          PropertyMap.showRoute(property.lat, property.lng, { town: townName });
+          // Highlight the clicked item
+          container.querySelectorAll(".town-item, .school-item").forEach((item) => item.classList.remove("active"));
+          el.classList.add("active");
+        }
+      });
+    });
+
+    // Add click handlers for schools (to show route)
+    container.querySelectorAll(".school-item.clickable").forEach((el) => {
+      el.addEventListener("click", () => {
+        const schoolName = el.dataset.school;
+        const toLat = parseFloat(el.dataset.lat);
+        const toLng = parseFloat(el.dataset.lng);
+        if (property.lat && property.lng && toLat && toLng) {
+          PropertyMap.showRoute(property.lat, property.lng, { toLat, toLng, name: schoolName });
+          // Highlight the clicked item
+          container.querySelectorAll(".town-item, .school-item").forEach((item) => item.classList.remove("active"));
+          el.classList.add("active");
+        }
+      });
+    });
   },
 
   // Initialize property sidebar functionality
@@ -479,6 +506,7 @@ const App = {
 
   hidePropertySidebar() {
     document.getElementById("property-sidebar").classList.add("hidden");
+    this.currentProperty = null;
     PropertyMap.clearRoute();
   },
 };

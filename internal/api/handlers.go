@@ -181,38 +181,55 @@ func (h *Handlers) TriggerScrape(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetRoute handles GET /api/route
-// Returns a driving route from a property to a town as GeoJSON LineString
+// Returns a driving route from a property to a destination as GeoJSON LineString
+// Supports two modes:
+// 1. By town name: from_lat, from_lng, town
+// 2. By coordinates: from_lat, from_lng, to_lat, to_lng, name (optional)
 func (h *Handlers) GetRoute(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
-	// Parse coordinates (required)
+	// Parse from coordinates (required)
 	fromLat, err1 := strconv.ParseFloat(q.Get("from_lat"), 64)
 	fromLng, err2 := strconv.ParseFloat(q.Get("from_lng"), 64)
-	townName := q.Get("town")
 
 	if err1 != nil || err2 != nil {
 		http.Error(w, "from_lat and from_lng required", http.StatusBadRequest)
 		return
 	}
-	if townName == "" {
-		http.Error(w, "town parameter required", http.StatusBadRequest)
-		return
-	}
 
-	// Look up town coordinates
 	var toLat, toLng float64
-	found := false
-	for _, town := range geo.NSWTowns {
-		if strings.EqualFold(town.Name, townName) {
-			toLat = town.Latitude
-			toLng = town.Longitude
-			found = true
-			break
-		}
-	}
+	var destName string
 
-	if !found {
-		http.Error(w, "town not found", http.StatusNotFound)
+	// Check if routing by coordinates or by town name
+	if q.Get("to_lat") != "" && q.Get("to_lng") != "" {
+		// Mode 2: Route by coordinates
+		var err3, err4 error
+		toLat, err3 = strconv.ParseFloat(q.Get("to_lat"), 64)
+		toLng, err4 = strconv.ParseFloat(q.Get("to_lng"), 64)
+		if err3 != nil || err4 != nil {
+			http.Error(w, "invalid to_lat or to_lng", http.StatusBadRequest)
+			return
+		}
+		destName = q.Get("name") // Optional name for the destination
+	} else if q.Get("town") != "" {
+		// Mode 1: Route by town name (legacy support)
+		townName := q.Get("town")
+		found := false
+		for _, town := range geo.NSWTowns {
+			if strings.EqualFold(town.Name, townName) {
+				toLat = town.Latitude
+				toLng = town.Longitude
+				destName = townName
+				found = true
+				break
+			}
+		}
+		if !found {
+			http.Error(w, "town not found", http.StatusNotFound)
+			return
+		}
+	} else {
+		http.Error(w, "either 'town' or 'to_lat'+'to_lng' parameters required", http.StatusBadRequest)
 		return
 	}
 
@@ -237,7 +254,7 @@ func (h *Handlers) GetRoute(w http.ResponseWriter, r *http.Request) {
 		"properties": map[string]interface{}{
 			"duration_mins": route.DurationMins,
 			"distance_km":   route.DistanceKm,
-			"town":          townName,
+			"name":          destName,
 		},
 	}
 
