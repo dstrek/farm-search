@@ -1,6 +1,7 @@
 # Build artifacts
 tmp/
 bin/
+server
 *.exe
 
 # Database (use make seed to recreate)
