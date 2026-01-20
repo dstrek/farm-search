@@ -110,7 +110,7 @@
   - Styled as dashed rose-colored line
   - Route clears when property deselected or sidebar closed
 - [x] Persist map viewport to localStorage
-- [ ] Fullscreen image modal
+- [x] Fullscreen image modal
   - Click on main carousel image to open fullscreen modal
   - Modal carousel with prev/next navigation
   - Close via X button, Escape key, or clicking outside

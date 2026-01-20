@@ -395,10 +395,18 @@ Right sidebar (380px) that opens when clicking a map marker:
 - Property type, beds, baths, land size
 - Drive time to Sutherland
 - Nearest towns with drive times
-- Image gallery (horizontal scroll, up to 5 images)
+- Image gallery with thumbnails and prev/next navigation
 - Description
 - Link to original listing (shows multiple sources if property listed on multiple sites)
 - Close via X button or Escape key
+
+### Fullscreen Image Modal
+
+Click on the main carousel image to open a fullscreen modal:
+- Dark overlay (95% opacity) with centered image
+- Prev/next navigation buttons and keyboard arrows
+- Image counter showing position (e.g., "3 / 12")
+- Close via X button, Escape key, or clicking outside the image
 
 ### Route Display
 
