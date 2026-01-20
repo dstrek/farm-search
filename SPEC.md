@@ -314,7 +314,7 @@ Get driving route from a property to a town.
 
 ### GET /api/boundaries
 
-Get cadastral lot boundaries within map bounds.
+Get cadastral lot boundaries for properties matching filters within map bounds.
 
 **Query Parameters:**
 
@@ -322,6 +322,17 @@ Get cadastral lot boundaries within map bounds.
 |-----------|------|-------------|
 | bounds | string | Map viewport: "sw_lat,sw_lng,ne_lat,ne_lng" (required) |
 | zoom | float | Current zoom level (optional, enables buffer at zoom >= 14) |
+| price_min | int | Minimum price |
+| price_max | int | Maximum price |
+| type | string | Comma-separated property types |
+| land_size_min | float | Minimum land size (sqm) |
+| land_size_max | float | Maximum land size (sqm) |
+| distance_sydney_max | float | Max distance from Sydney (km) |
+| distance_town_max | float | Max distance from nearest town (km) |
+| drive_time_sydney_max | int | Max drive time from Sydney (minutes) |
+| drive_time_town_max | int | Max drive time to nearest town (minutes) |
+
+Note: Accepts the same filter parameters as `/api/properties` to ensure boundaries only show for properties matching the current filter criteria.
 
 **Response:**
 ```json
@@ -412,7 +423,8 @@ When a property is selected, a dashed line shows the driving route to the neares
 2. Extract listing IDs and basic info from search results
 3. Optionally fetch full listing pages for additional details
 4. Geocode addresses without coordinates using Nominatim
-5. Store in SQLite with upsert logic
+5. Skip properties without valid coordinates (they can't be displayed on map)
+6. Store in SQLite with upsert logic
 
 **Rate Limiting:**
 - 2 second delay between page requests
@@ -471,6 +483,8 @@ make clean      # Remove build artifacts
 - NSW DCDB property boundary integration via ArcGIS REST API
 - Display lot boundaries when zoomed in (zoom 12+)
 - Lot/DP number stored with properties
+- Cadastral lookup uses ~500m bounding box fallback when exact point query fails (handles approximate geocoded coordinates)
+- Boundaries respect current filter state (only shows for matching properties)
 
 ### Phase 4: Enhanced Filters
 - School type filter (primary/secondary)
