@@ -213,14 +213,7 @@ func (s *Scraper) Run(ctx context.Context) error {
 		}
 		log.Printf("Geocoded %d listings", geocoded)
 	} else {
-		// Count how many are missing coordinates
-		missing := 0
-		for _, l := range allListings {
-			if !l.Latitude.Valid || !l.Longitude.Valid {
-				missing++
-			}
-		}
-		log.Printf("Skipped geocoding (%d listings without coordinates)", missing)
+		log.Printf("Skipped geocoding (run with -geocode to enable)")
 	}
 
 	// Save to database
@@ -242,14 +235,25 @@ func (s *Scraper) Run(ctx context.Context) error {
 
 func (s *Scraper) saveListings(listings []models.Property) (int, error) {
 	saved := 0
+	skipped := 0
 
 	for _, listing := range listings {
+		// Skip properties without coordinates - they can't be shown on the map
+		if !listing.Latitude.Valid || !listing.Longitude.Valid {
+			skipped++
+			continue
+		}
+
 		err := s.db.UpsertProperty(&listing)
 		if err != nil {
 			log.Printf("Failed to save listing %s: %v", listing.ExternalID, err)
 			continue
 		}
 		saved++
+	}
+
+	if skipped > 0 {
+		log.Printf("Skipped %d properties without coordinates", skipped)
 	}
 
 	return saved, nil
