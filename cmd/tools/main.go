@@ -14,6 +14,9 @@ import (
 	"farm-search/internal/geo"
 )
 
+// Default Valhalla URL - local instance in this container
+const defaultValhallaURL = "http://localhost:8002"
+
 func main() {
 	// Sub-commands
 	if len(os.Args) < 2 {
@@ -60,7 +63,7 @@ func printUsage() {
 
 func generateIsochrones() {
 	outputDir := flag.String("output", "web/static/data/isochrones", "Output directory")
-	valhallaURL := flag.String("valhalla-url", "", "Valhalla server URL (e.g., http://localhost:8002 for local, no time limit)")
+	valhallaURL := flag.String("valhalla-url", defaultValhallaURL, "Valhalla server URL")
 	flag.Parse()
 
 	if err := os.MkdirAll(*outputDir, 0755); err != nil {
@@ -69,14 +72,8 @@ func generateIsochrones() {
 
 	ctx := context.Background()
 
-	var gen *geo.IsochroneGenerator
-	if *valhallaURL != "" {
-		log.Printf("Using Valhalla at %s (no time limit)", *valhallaURL)
-		gen = geo.NewIsochroneGenerator(*valhallaURL)
-	} else {
-		log.Println("Using public Valhalla API (max 90 min)")
-		gen = geo.NewIsochroneGenerator("")
-	}
+	log.Printf("Using Valhalla at %s", *valhallaURL)
+	gen := geo.NewIsochroneGenerator(*valhallaURL)
 
 	intervals := []int{15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180}
 
@@ -110,7 +107,7 @@ func generateIsochrones() {
 
 func calculateTownDriveTimes() {
 	dbPath := flag.String("db", "data/farm-search.db", "Database path")
-	valhallaURL := flag.String("valhalla-url", "", "Valhalla server URL (e.g., http://localhost:8002 for local)")
+	valhallaURL := flag.String("valhalla-url", defaultValhallaURL, "Valhalla server URL")
 	all := flag.Bool("all", false, "Recalculate all properties, not just missing ones")
 	flag.Parse()
 
@@ -123,15 +120,8 @@ func calculateTownDriveTimes() {
 	ctx := context.Background()
 
 	// Create router
-	isLocal := *valhallaURL != ""
-	var router *geo.Router
-	if isLocal {
-		log.Printf("Using local Valhalla at %s (no rate limiting)", *valhallaURL)
-		router = geo.NewRouter(*valhallaURL)
-	} else {
-		log.Println("Using public Valhalla API (rate limited)")
-		router = geo.NewRouter("")
-	}
+	log.Printf("Using Valhalla at %s", *valhallaURL)
+	router := geo.NewRouter(*valhallaURL)
 
 	// Build a map of town name -> coordinates for quick lookup
 	townCoords := make(map[string]geo.Location)
@@ -189,9 +179,6 @@ func calculateTownDriveTimes() {
 				log.Printf("[%d/%d] Failed route to %s for property %d: %v",
 					i+1, len(properties), p.NearestTown1, p.ID, err)
 				failed++
-				if !isLocal {
-					time.Sleep(500 * time.Millisecond)
-				}
 				continue
 			}
 			mins := int(result.DurationMins + 0.5)
@@ -209,9 +196,6 @@ func calculateTownDriveTimes() {
 				} else {
 					mins := int(result.DurationMins + 0.5)
 					town2Mins = &mins
-				}
-				if !isLocal {
-					time.Sleep(500 * time.Millisecond)
 				}
 			}
 		}
@@ -243,12 +227,6 @@ func calculateTownDriveTimes() {
 			p.NearestTown1, town1Str, p.NearestTown2, town2Str)
 
 		success++
-
-		// Rate limiting only for public API
-		if !isLocal && town2Mins == nil {
-			// If we only made one request, add delay
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
 
 	log.Printf("Done! Success: %d, Failed: %d", success, failed)
@@ -339,7 +317,7 @@ func seedSampleData() {
 
 func calculateDriveTimes() {
 	dbPath := flag.String("db", "data/farm-search.db", "Database path")
-	valhallaURL := flag.String("valhalla-url", "", "Valhalla server URL (e.g., http://localhost:8002 for local)")
+	valhallaURL := flag.String("valhalla-url", defaultValhallaURL, "Valhalla server URL")
 	all := flag.Bool("all", false, "Recalculate all properties, not just missing ones")
 	flag.Parse()
 
@@ -352,15 +330,8 @@ func calculateDriveTimes() {
 	ctx := context.Background()
 
 	// Create router
-	isLocal := *valhallaURL != ""
-	var router *geo.Router
-	if isLocal {
-		log.Printf("Using local Valhalla at %s (no rate limiting)", *valhallaURL)
-		router = geo.NewRouter(*valhallaURL)
-	} else {
-		log.Println("Using public Valhalla API (rate limited)")
-		router = geo.NewRouter("")
-	}
+	log.Printf("Using Valhalla at %s", *valhallaURL)
+	router := geo.NewRouter(*valhallaURL)
 
 	// Get properties
 	var properties []struct {
@@ -403,9 +374,6 @@ func calculateDriveTimes() {
 			log.Printf("[%d/%d] Failed for property %d (%s, %s): %v",
 				i+1, len(properties), p.ID, p.Address, p.Suburb, err)
 			failed++
-			if !isLocal {
-				time.Sleep(500 * time.Millisecond)
-			}
 			continue
 		}
 
@@ -429,11 +397,6 @@ func calculateDriveTimes() {
 			i+1, len(properties), p.ID, location, driveTimeMins, result.DistanceKm)
 
 		success++
-
-		// Rate limiting only for public API
-		if !isLocal {
-			time.Sleep(500 * time.Millisecond)
-		}
 	}
 
 	log.Printf("Done! Success: %d, Failed: %d", success, failed)

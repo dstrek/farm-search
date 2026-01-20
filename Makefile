@@ -1,19 +1,23 @@
-.PHONY: run build scrape migrate clean help seed isochrones distances deploy setup-server
+.PHONY: run build scrape migrate clean help seed isochrones distances drivetimes towns towndrivetimes cadastral deploy setup-server
 
 # Default target
 help:
 	@echo "Farm Search - NSW Property Map"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make run        - Run the web server with live reload (air)"
-	@echo "  make build      - Build server, scraper, and tools binaries"
-	@echo "  make scrape     - Run the property scraper (ARGS=\"-source=farmproperty -pages=1\")"
-	@echo "  make seed       - Seed database with sample properties"
-	@echo "  make isochrones - Generate Sydney drive-time isochrone GeoJSON"
-	@echo "  make distances  - Calculate property distances"
-	@echo "  make migrate    - Initialize/migrate the database"
-	@echo "  make clean      - Remove build artifacts"
-	@echo "  make deps       - Download Go dependencies"
+	@echo "  make run           - Run the web server with live reload (air)"
+	@echo "  make build         - Build server, scraper, and tools binaries"
+	@echo "  make scrape        - Run the property scraper (ARGS=\"-source=farmproperty -pages=1\")"
+	@echo "  make seed          - Seed database with sample properties"
+	@echo "  make isochrones    - Generate Sutherland drive-time isochrone GeoJSON"
+	@echo "  make distances     - Calculate property distances (straight-line)"
+	@echo "  make drivetimes    - Calculate drive times to Sutherland"
+	@echo "  make towns         - Calculate nearest towns for properties"
+	@echo "  make towndrivetimes - Calculate drive times to nearest towns"
+	@echo "  make cadastral     - Fetch cadastral lot boundaries"
+	@echo "  make migrate       - Initialize/migrate the database"
+	@echo "  make clean         - Remove build artifacts"
+	@echo "  make deps          - Download Go dependencies"
 
 # Run the server in development mode with live reload
 run:
@@ -44,9 +48,25 @@ seed:
 isochrones:
 	go run ./cmd/tools isochrones
 
-# Calculate property distances
+# Calculate property distances (straight-line)
 distances:
 	go run ./cmd/tools distances
+
+# Calculate drive times to Sutherland
+drivetimes:
+	go run ./cmd/tools drivetimes
+
+# Calculate nearest towns for properties
+towns:
+	go run ./cmd/tools towns
+
+# Calculate drive times to nearest towns
+towndrivetimes:
+	go run ./cmd/tools towndrivetimes
+
+# Fetch cadastral lot boundaries
+cadastral:
+	go run ./cmd/tools cadastral
 
 # Initialize database (creates tables via seed which calls db.New)
 migrate: seed
