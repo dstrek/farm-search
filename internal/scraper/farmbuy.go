@@ -131,14 +131,19 @@ func (s *FarmBuyScraper) scrapePage(ctx context.Context, state string, page int)
 
 		listing := s.convertListing(&data)
 		if listing != nil {
-			// Fetch detail page to get all images
+			// Fetch detail page to get all images and description
 			if data.URL != "" {
-				images, err := s.fetchDetailImages(ctx, data.URL)
+				images, description, err := s.fetchDetailPage(ctx, data.URL)
 				if err != nil {
-					log.Printf("Error fetching images for %s: %v", propertyID, err)
-				} else if len(images) > 0 {
-					imgJSON, _ := json.Marshal(images)
-					listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+					log.Printf("Error fetching detail page for %s: %v", propertyID, err)
+				} else {
+					if len(images) > 0 {
+						imgJSON, _ := json.Marshal(images)
+						listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+					}
+					if description != "" {
+						listing.Description = sql.NullString{String: description, Valid: true}
+					}
 				}
 				// Rate limiting between detail fetches
 				time.Sleep(300 * time.Millisecond)
@@ -369,11 +374,11 @@ func parseLandSizeString(sizeStr string) float64 {
 	}
 }
 
-// fetchDetailImages fetches all images from a property detail page
-func (s *FarmBuyScraper) fetchDetailImages(ctx context.Context, url string) ([]string, error) {
+// fetchDetailPage fetches images and description from a property detail page
+func (s *FarmBuyScraper) fetchDetailPage(ctx context.Context, url string) ([]string, string, error) {
 	body, err := s.fetch(ctx, url)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	// Extract full-size images from farmbuycdn (1920_ prefix for full size)
@@ -381,7 +386,7 @@ func (s *FarmBuyScraper) fetchDetailImages(ctx context.Context, url string) ([]s
 	imgPattern := regexp.MustCompile(`https://farmbuycdn\.clodflare\.pushcreative\.com\.au/\d+/1920_[^"]+\.(jpg|jpeg|png|webp)`)
 	matches := imgPattern.FindAllString(body, -1)
 
-	// Deduplicate
+	// Deduplicate images
 	seen := make(map[string]bool)
 	var images []string
 	for _, img := range matches {
@@ -391,7 +396,60 @@ func (s *FarmBuyScraper) fetchDetailImages(ctx context.Context, url string) ([]s
 		}
 	}
 
-	return images, nil
+	// Extract description from <div id="propertyprofile" class="user-content">
+	description := s.extractDescription(body)
+
+	return images, description, nil
+}
+
+// extractDescription extracts the property description from HTML
+func (s *FarmBuyScraper) extractDescription(body string) string {
+	// Find the propertyprofile div content
+	// Pattern: <div id="propertyprofile" class="user-content">...</div>
+	startMarker := `<div id="propertyprofile" class="user-content">`
+	startIdx := strings.Index(body, startMarker)
+	if startIdx == -1 {
+		return ""
+	}
+
+	// Move past the opening tag
+	startIdx += len(startMarker)
+
+	// Find the closing tag - look for the next major section marker
+	// The description ends before <h4> sections or </read-more> or the closing </div>
+	content := body[startIdx:]
+
+	// Find where the main description ends (before additional sections like Annual Rainfall)
+	endMarkers := []string{"<h4>", "</read-more>", "</div>"}
+	endIdx := len(content)
+	for _, marker := range endMarkers {
+		if idx := strings.Index(content, marker); idx != -1 && idx < endIdx {
+			endIdx = idx
+		}
+	}
+	content = content[:endIdx]
+
+	// Extract text from <p> tags and clean up HTML
+	var descParts []string
+	pPattern := regexp.MustCompile(`<p>([^<]+)`)
+	pMatches := pPattern.FindAllStringSubmatch(content, -1)
+	for _, match := range pMatches {
+		if len(match) > 1 {
+			text := strings.TrimSpace(match[1])
+			if text != "" {
+				// Decode HTML entities
+				text = strings.ReplaceAll(text, "&amp;", "&")
+				text = strings.ReplaceAll(text, "&lt;", "<")
+				text = strings.ReplaceAll(text, "&gt;", ">")
+				text = strings.ReplaceAll(text, "&quot;", "\"")
+				text = strings.ReplaceAll(text, "&#39;", "'")
+				text = strings.ReplaceAll(text, "&nbsp;", " ")
+				descParts = append(descParts, text)
+			}
+		}
+	}
+
+	return strings.Join(descParts, "\n\n")
 }
 
 func (s *FarmBuyScraper) fetch(ctx context.Context, url string) (string, error) {
