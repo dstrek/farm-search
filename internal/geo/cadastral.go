@@ -125,64 +125,10 @@ func (c *CadastralClient) FetchLotsInBounds(ctx context.Context, minLng, minLat,
 	return lots, nil
 }
 
-// FetchLotsAtPoint fetches cadastral lots that contain or are near the given point.
-// First tries an exact point intersection, then falls back to a small bounding box
-// search (~200m radius) to handle cases where property coordinates are approximate
-// (e.g., geocoded to a road rather than the property itself).
+// FetchLotsAtPoint fetches cadastral lots that contain the given point.
+// Uses an exact point intersection query - returns empty if no lot contains the point.
 func (c *CadastralClient) FetchLotsAtPoint(ctx context.Context, lng, lat float64) ([]LotFeature, error) {
-	// First try exact point intersection
-	lots, err := c.fetchLotsWithGeometry(ctx, fmt.Sprintf("%f,%f", lng, lat), "esriGeometryPoint", 10)
-	if err != nil {
-		return nil, err
-	}
-
-	// If point query found lots, return them
-	if len(lots) > 0 {
-		return lots, nil
-	}
-
-	// Fall back to bounding box search (~500m radius)
-	// At Australian latitudes, 0.005 degrees ≈ 500m
-	buffer := 0.005
-	minLng := lng - buffer
-	maxLng := lng + buffer
-	minLat := lat - buffer
-	maxLat := lat + buffer
-
-	lots, err = c.fetchLotsWithGeometry(ctx,
-		fmt.Sprintf("%f,%f,%f,%f", minLng, minLat, maxLng, maxLat),
-		"esriGeometryEnvelope", 20)
-	if err != nil {
-		return nil, err
-	}
-
-	// Filter to lots whose centroid is within ~200m of the search point
-	if len(lots) > 0 {
-		filtered := make([]LotFeature, 0)
-		for _, lot := range lots {
-			if lot.Geometry == nil {
-				continue
-			}
-			centLat, centLng, err := CalculateLotCentroid(lot.Geometry)
-			if err != nil {
-				continue
-			}
-			// Simple distance check (not exact but good enough for filtering)
-			if abs(centLat-lat) < buffer && abs(centLng-lng) < buffer {
-				filtered = append(filtered, lot)
-			}
-		}
-		return filtered, nil
-	}
-
-	return lots, nil
-}
-
-func abs(x float64) float64 {
-	if x < 0 {
-		return -x
-	}
-	return x
+	return c.fetchLotsWithGeometry(ctx, fmt.Sprintf("%f,%f", lng, lat), "esriGeometryPoint", 10)
 }
 
 // fetchLotsWithGeometry performs the actual API query with the given geometry
