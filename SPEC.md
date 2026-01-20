@@ -322,25 +322,31 @@ Get cadastral lot boundaries within map bounds.
 ### Map Display
 
 - **Library**: MapLibre GL JS
-- **Tiles**: OpenStreetMap raster tiles
-- **Center**: NSW (-32.5, 147.0)
-- **Zoom**: 5.5 (shows all of NSW)
-- **Markers**: Colored circles for each property (color by source)
-- **Popups**: Property summary on marker click
-- **Isochrone Layer**: Semi-transparent polygon overlay
+- **Base Tiles**: OpenStreetMap (streets) or Mapbox (satellite)
+- **Default Center**: NSW (150.086, -34.048)
+- **Default Zoom**: 7.72 (shows regional NSW)
+- **Markers**: Colored circles for each property (color by source: orange=FarmProperty, green=FarmBuy, red=REA)
+- **Popups**: Property summary on marker click with "View Details" button
+- **Isochrone Layer**: Semi-transparent polygon overlay showing drive time from Sutherland
 - **Boundary Layer**: Property cadastral boundaries (visible at zoom 12+)
+
+**Viewport Persistence**: Map center and zoom level are saved to localStorage (`farm-search-viewport`) on every move (debounced 500ms) and restored on page load.
 
 ### Filter Sidebar
 
+Width: 260px (collapsible on mobile)
+
 | Filter | Control | Behavior |
 |--------|---------|----------|
-| Price Range | Two number inputs | Min/max price |
-| Property Type | Checkboxes | Multiple selection |
-| Land Size | Two number inputs | Min/max sqm |
-| Distance from Sydney | Range slider | 0-500km |
-| Distance from Town | Range slider | 0-100km |
-| Distance from School | Range slider | 0-50km |
-| Drive Time from Sydney | Dropdown | 15-90 min (15-min increments) |
+| Max Price | Range slider | Custom price steps ($100k-$10M) |
+| Min Land Size | Range slider | 10-100 HA in 10 HA increments |
+| Drive to Sutherland | Range slider | 15-255 min in 15-min increments |
+| Drive to nearest town | Range slider | 5-60 min in 5-min increments |
+| Distance from school | Range slider | 0-50 km |
+| Map Style | Button group | Streets / Satellite toggle |
+| Drive time area | Dropdown | Isochrone overlay (1-3 hours) |
+
+**Persistence**: Filter state is saved to localStorage (`farm-search-filters`) and restored on page load. Schema versioning ensures invalid saved data is cleared automatically.
 
 ### Property Modal
 

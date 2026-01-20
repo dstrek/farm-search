@@ -89,6 +89,30 @@
 - [x] Fetch and store cadastral lot boundaries from NSW Spatial Services
 - [x] Render property boundaries on map after a certain zoom level
 
+### UI Improvements
+- [x] Reduce left sidebar width (320px → 260px)
+- [ ] Replace popup+modal with right property details sidebar
+  - Add new `<aside id="property-details">` element
+  - CSS: Right sidebar (350-400px), slide in/out animation, adjust map width
+  - Remove popup on marker click, instead open sidebar with full details
+  - Fetch full property details on marker click (same `/api/properties/:id` endpoint)
+  - Close via button, click-outside, or Escape key
+  - Remove or repurpose existing modal code
+- [ ] Property image gallery/carousel
+  - Larger primary image display area
+  - Thumbnail strip or dot indicators for navigation
+  - Prev/next buttons with keyboard support (arrow keys)
+  - Show all images (currently limited to 5)
+  - Optional: Lightbox for full-screen viewing
+  - Consider lazy loading for large image sets
+- [ ] Show travel route to nearest town on map
+  - When property sidebar opens, draw route line to nearest town
+  - Use Valhalla routing API (proxy through backend or direct)
+  - Add GeoJSON source/layer for route polyline
+  - Style as dashed line with distinct color
+  - Clear route when property deselected
+- [x] Persist map viewport to localStorage
+
 ### Medium Priority
 - [ ] Add Domain.com.au scraper (may have bot protection)
 - [ ] Implement scheduled daily scraping (cron)

@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Task Management
+
+Feature development and tasks are tracked in `TODO.md`. Check this file for pending work and update it as features are completed.
+
+When adding new features, ensure `SPEC.md` is kept up to date with any changes to functionality, API endpoints, or user-facing behavior.
+
 ## Project Overview
 
 Farm Search is a web application for discovering rural and farm properties for sale in NSW, Australia. It displays properties on an interactive map with filtering capabilities based on price, property type, land size, and distance from key locations.
@@ -48,10 +54,6 @@ make setup-server # Initial server setup (run once)
 go run cmd/tools/main.go cadastral        # Fetch lots for properties missing data
 go run cmd/tools/main.go cadastral -all   # Re-fetch lots for all properties
 ```
-
-## Task Management
-
-Feature development and tasks are tracked in `TODO.md`. Check this file for pending work and update it as features are completed.
 
 ## Development Guidelines
 

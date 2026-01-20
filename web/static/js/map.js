@@ -18,6 +18,10 @@ const PropertyMap = {
     boundariesMinZoom: 12,  // Minimum zoom level to show boundaries
     boundariesLoading: false,  // Prevent concurrent boundary requests
 
+    // Viewport persistence
+    VIEWPORT_STORAGE_KEY: 'farm-search-viewport',
+    viewportSaveTimeout: null,
+
     // Marker colours per source
     sourceColors: {
         'farmproperty': '#f97316',  // Orange
@@ -44,6 +48,11 @@ const PropertyMap = {
 
     // Initialize the map
     init(containerId) {
+        // Try to restore saved viewport, fall back to NSW defaults
+        const savedViewport = this.loadViewport();
+        const initialCenter = savedViewport ? savedViewport.center : this.NSW_BOUNDS.center;
+        const initialZoom = savedViewport ? savedViewport.zoom : this.NSW_BOUNDS.zoom;
+
         this.map = new maplibregl.Map({
             container: containerId,
             style: {
@@ -86,8 +95,8 @@ const PropertyMap = {
                     }
                 ]
             },
-            center: this.NSW_BOUNDS.center,
-            zoom: this.NSW_BOUNDS.zoom,
+            center: initialCenter,
+            zoom: initialZoom,
             minZoom: this.NSW_BOUNDS.minZoom,
             maxZoom: this.NSW_BOUNDS.maxZoom
         });
@@ -196,6 +205,7 @@ const PropertyMap = {
             // Load boundaries when zoomed in and map moves
             this.map.on('moveend', () => {
                 this.loadBoundariesIfNeeded();
+                this.saveViewport();
             });
             this.map.on('zoomend', () => {
                 this.loadBoundariesIfNeeded();
@@ -217,6 +227,9 @@ const PropertyMap = {
             this.ready = true;
             this.readyCallbacks.forEach(cb => cb());
             this.readyCallbacks = [];
+
+            // Load boundaries if already zoomed in (e.g., restored viewport)
+            this.loadBoundariesIfNeeded();
         });
 
         return this.map;
@@ -399,6 +412,89 @@ const PropertyMap = {
             console.warn('Failed to load boundaries:', err);
         } finally {
             this.boundariesLoading = false;
+        }
+    },
+
+    // ==================== Viewport Persistence ====================
+
+    // Save current viewport to localStorage (debounced)
+    saveViewport() {
+        // Debounce: clear any pending save
+        if (this.viewportSaveTimeout) {
+            clearTimeout(this.viewportSaveTimeout);
+        }
+
+        this.viewportSaveTimeout = setTimeout(() => {
+            try {
+                const center = this.map.getCenter();
+                const data = {
+                    lng: center.lng,
+                    lat: center.lat,
+                    zoom: this.map.getZoom(),
+                    savedAt: new Date().toISOString()
+                };
+                localStorage.setItem(this.VIEWPORT_STORAGE_KEY, JSON.stringify(data));
+            } catch (err) {
+                console.warn('[Map] Failed to save viewport:', err);
+            }
+        }, 500);  // 500ms debounce
+    },
+
+    // Load saved viewport from localStorage
+    // Returns { center: [lng, lat], zoom } or null if invalid/missing
+    loadViewport() {
+        try {
+            const raw = localStorage.getItem(this.VIEWPORT_STORAGE_KEY);
+            if (!raw) return null;
+
+            const data = JSON.parse(raw);
+
+            // Validate structure and values
+            if (!this.validateViewport(data)) {
+                console.log('[Map] Saved viewport invalid, using defaults');
+                localStorage.removeItem(this.VIEWPORT_STORAGE_KEY);
+                return null;
+            }
+
+            console.log('[Map] Restored viewport from', data.savedAt);
+            return {
+                center: [data.lng, data.lat],
+                zoom: data.zoom
+            };
+        } catch (err) {
+            console.warn('[Map] Failed to load viewport:', err);
+            return null;
+        }
+    },
+
+    // Validate viewport data
+    validateViewport(data) {
+        if (!data || typeof data !== 'object') return false;
+
+        // Check required fields exist and are numbers
+        if (typeof data.lng !== 'number' || isNaN(data.lng)) return false;
+        if (typeof data.lat !== 'number' || isNaN(data.lat)) return false;
+        if (typeof data.zoom !== 'number' || isNaN(data.zoom)) return false;
+
+        // Validate longitude (-180 to 180)
+        if (data.lng < -180 || data.lng > 180) return false;
+
+        // Validate latitude (-90 to 90)
+        if (data.lat < -90 || data.lat > 90) return false;
+
+        // Validate zoom (reasonable range for our app)
+        if (data.zoom < this.NSW_BOUNDS.minZoom || data.zoom > this.NSW_BOUNDS.maxZoom) return false;
+
+        return true;
+    },
+
+    // Clear saved viewport
+    clearViewport() {
+        try {
+            localStorage.removeItem(this.VIEWPORT_STORAGE_KEY);
+            console.log('[Map] Cleared saved viewport');
+        } catch (err) {
+            console.warn('[Map] Failed to clear viewport:', err);
         }
     }
 };
