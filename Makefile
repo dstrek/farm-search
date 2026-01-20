@@ -7,7 +7,7 @@ help:
 	@echo "Usage:"
 	@echo "  make run        - Run the web server with live reload (air)"
 	@echo "  make build      - Build server, scraper, and tools binaries"
-	@echo "  make scrape     - Run the property scraper"
+	@echo "  make scrape     - Run the property scraper (ARGS=\"-source=farmproperty -pages=1\")"
 	@echo "  make seed       - Seed database with sample properties"
 	@echo "  make isochrones - Generate Sydney drive-time isochrone GeoJSON"
 	@echo "  make distances  - Calculate property distances"
@@ -30,8 +30,10 @@ build:
 	go build -o bin/tools ./cmd/tools
 
 # Run the scraper
+# Usage: make scrape ARGS="-source=farmproperty -pages=1"
+#    or: go run ./cmd/scraper -source=farmproperty -pages=1
 scrape:
-	go run ./cmd/scraper
+	go run ./cmd/scraper $(ARGS)
 
 # Seed database with sample data
 seed:

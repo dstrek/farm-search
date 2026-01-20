@@ -1,5 +1,118 @@
 // Main application entry point
 
+// Image Gallery component for property images
+const ImageGallery = {
+    currentIndex: 0,
+    images: [],
+
+    // Generate gallery HTML
+    render(images) {
+        this.images = images || [];
+        this.currentIndex = 0;
+
+        if (this.images.length === 0) {
+            return '';
+        }
+
+        const thumbnailsHtml = this.images.map((url, i) => 
+            `<div class="gallery-thumb${i === 0 ? ' active' : ''}" data-index="${i}">
+                <img src="${url}" alt="Image ${i + 1}" onerror="this.parentElement.style.display='none'">
+            </div>`
+        ).join('');
+
+        return `
+            <div class="image-gallery" data-gallery>
+                <div class="gallery-main">
+                    <img src="${this.images[0]}" alt="Property image" class="gallery-main-img" onerror="this.src='/static/img/no-image.png'">
+                    ${this.images.length > 1 ? `
+                        <button class="gallery-nav gallery-prev" aria-label="Previous image">&lsaquo;</button>
+                        <button class="gallery-nav gallery-next" aria-label="Next image">&rsaquo;</button>
+                    ` : ''}
+                    <div class="gallery-counter">${this.images.length > 1 ? `1 / ${this.images.length}` : ''}</div>
+                </div>
+                ${this.images.length > 1 ? `
+                    <div class="gallery-thumbs">
+                        ${thumbnailsHtml}
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
+    // Initialize gallery event handlers
+    init(container) {
+        const gallery = container.querySelector('[data-gallery]');
+        if (!gallery) return;
+
+        const mainImg = gallery.querySelector('.gallery-main-img');
+        const counter = gallery.querySelector('.gallery-counter');
+        const thumbs = gallery.querySelectorAll('.gallery-thumb');
+        const prevBtn = gallery.querySelector('.gallery-prev');
+        const nextBtn = gallery.querySelector('.gallery-next');
+
+        const updateImage = (index) => {
+            if (index < 0) index = this.images.length - 1;
+            if (index >= this.images.length) index = 0;
+            
+            this.currentIndex = index;
+            mainImg.src = this.images[index];
+            
+            if (counter) {
+                counter.textContent = `${index + 1} / ${this.images.length}`;
+            }
+
+            thumbs.forEach((thumb, i) => {
+                thumb.classList.toggle('active', i === index);
+            });
+
+            // Scroll active thumbnail into view
+            const activeThumb = thumbs[index];
+            if (activeThumb) {
+                activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        };
+
+        // Thumbnail clicks
+        thumbs.forEach(thumb => {
+            thumb.addEventListener('click', () => {
+                updateImage(parseInt(thumb.dataset.index));
+            });
+        });
+
+        // Nav button clicks
+        if (prevBtn) {
+            prevBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                updateImage(this.currentIndex - 1);
+            });
+        }
+        if (nextBtn) {
+            nextBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                updateImage(this.currentIndex + 1);
+            });
+        }
+
+        // Store reference for keyboard navigation
+        gallery._updateImage = updateImage;
+    },
+
+    // Handle keyboard navigation (called from App)
+    handleKeydown(e, container) {
+        const gallery = container.querySelector('[data-gallery]');
+        if (!gallery || !gallery._updateImage) return false;
+
+        if (e.key === 'ArrowLeft') {
+            gallery._updateImage(this.currentIndex - 1);
+            return true;
+        } else if (e.key === 'ArrowRight') {
+            gallery._updateImage(this.currentIndex + 1);
+            return true;
+        }
+        return false;
+    }
+};
+
 const App = {
     // Initialize the application
     async init() {
@@ -76,9 +189,28 @@ const App = {
         try {
             const property = await API.getProperty(id);
             this.renderPropertySidebar(property);
+
+            // Show route to nearest town (by drive time if available, otherwise by distance)
+            let routeTown = null;
+            if (property.nearest_town_1_mins && property.nearest_town_2_mins) {
+                // Both have drive times - pick the faster one
+                routeTown = property.nearest_town_1_mins <= property.nearest_town_2_mins 
+                    ? property.nearest_town_1 
+                    : property.nearest_town_2;
+            } else if (property.nearest_town_1) {
+                // Fall back to nearest by distance
+                routeTown = property.nearest_town_1;
+            }
+
+            if (property.lat && property.lng && routeTown) {
+                PropertyMap.showRoute(property.lat, property.lng, routeTown);
+            } else {
+                PropertyMap.clearRoute();
+            }
         } catch (err) {
             console.error('Failed to load property details:', err);
             container.innerHTML = '<p style="color: #dc2626; text-align: center;">Failed to load property details.</p>';
+            PropertyMap.clearRoute();
         }
     },
 
@@ -86,16 +218,8 @@ const App = {
     renderPropertySidebar(property) {
         const container = document.getElementById('property-detail');
 
-        let imagesHtml = '';
-        if (property.images && property.images.length > 0) {
-            imagesHtml = `
-                <div class="property-images">
-                    ${property.images.slice(0, 5).map(url => 
-                        `<img src="${url}" alt="Property image" onerror="this.style.display='none'">`
-                    ).join('')}
-                </div>
-            `;
-        }
+        // Use image gallery for all images (no limit)
+        const imagesHtml = ImageGallery.render(property.images);
 
         // Build source links - show all sources if property is listed on multiple sites
         let sourcesHtml = '';
@@ -160,6 +284,9 @@ const App = {
             <div class="description">${property.description || 'No description available.'}</div>
             ${sourcesHtml}
         `;
+
+        // Initialize image gallery
+        ImageGallery.init(container);
     },
 
     // Initialize property sidebar functionality
@@ -169,10 +296,20 @@ const App = {
 
         closeBtn.addEventListener('click', () => this.hidePropertySidebar());
 
-        // Close on Escape key
+        // Keyboard navigation
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !sidebar.classList.contains('hidden')) {
+            if (sidebar.classList.contains('hidden')) return;
+
+            // Close on Escape key
+            if (e.key === 'Escape') {
                 this.hidePropertySidebar();
+                return;
+            }
+
+            // Arrow keys for gallery navigation
+            const container = document.getElementById('property-detail');
+            if (ImageGallery.handleKeydown(e, container)) {
+                e.preventDefault();
             }
         });
     },
@@ -201,6 +338,7 @@ const App = {
 
     hidePropertySidebar() {
         document.getElementById('property-sidebar').classList.add('hidden');
+        PropertyMap.clearRoute();
     }
 };
 

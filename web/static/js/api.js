@@ -78,5 +78,15 @@ const API = {
             throw new Error(`Failed to fetch boundaries: ${response.statusText}`);
         }
         return response.json();
+    },
+
+    // Fetch driving route from property to town
+    async getRoute(fromLat, fromLng, townName) {
+        const url = `${this.baseUrl}/route?from_lat=${fromLat}&from_lng=${fromLng}&town=${encodeURIComponent(townName)}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            return null; // Route may not be available
+        }
+        return response.json();
     }
 };

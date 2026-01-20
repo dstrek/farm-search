@@ -166,7 +166,7 @@ func (s *FarmPropertyScraper) parseListingDetails(html, listingURL, listingID st
 						listing.Description = sql.NullString{String: desc, Valid: true}
 					}
 
-					// Extract image
+					// Extract image from JSON-LD (fallback, will be overridden by carousel images)
 					if img, ok := item["image"].(string); ok {
 						images := []string{img}
 						imgJSON, _ := json.Marshal(images)
@@ -203,6 +203,25 @@ func (s *FarmPropertyScraper) parseListingDetails(html, listingURL, listingID st
 					}
 				}
 			}
+		}
+	}
+
+	// Extract all images from carousel (overrides single JSON-LD image)
+	// Look for img tags with img.farmproperty.com.au URLs in carousel
+	carouselImgPattern := regexp.MustCompile(`<img[^>]+src="(https://img\.farmproperty\.com\.au/[^"]+)"`)
+	imgMatches := carouselImgPattern.FindAllStringSubmatch(html, -1)
+	if len(imgMatches) > 0 {
+		seen := make(map[string]bool)
+		var images []string
+		for _, match := range imgMatches {
+			if len(match) >= 2 && !seen[match[1]] {
+				seen[match[1]] = true
+				images = append(images, match[1])
+			}
+		}
+		if len(images) > 0 {
+			imgJSON, _ := json.Marshal(images)
+			listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
 		}
 	}
 

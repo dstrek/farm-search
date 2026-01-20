@@ -1,11 +1,14 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"farm-search/internal/db"
+	"farm-search/internal/geo"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -164,6 +167,71 @@ func (h *Handlers) TriggerScrape(w http.ResponseWriter, r *http.Request) {
 		"status":  "queued",
 		"message": "Scrape job has been queued",
 	})
+}
+
+// GetRoute handles GET /api/route
+// Returns a driving route from a property to a town as GeoJSON LineString
+func (h *Handlers) GetRoute(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	// Parse coordinates (required)
+	fromLat, err1 := strconv.ParseFloat(q.Get("from_lat"), 64)
+	fromLng, err2 := strconv.ParseFloat(q.Get("from_lng"), 64)
+	townName := q.Get("town")
+
+	if err1 != nil || err2 != nil {
+		http.Error(w, "from_lat and from_lng required", http.StatusBadRequest)
+		return
+	}
+	if townName == "" {
+		http.Error(w, "town parameter required", http.StatusBadRequest)
+		return
+	}
+
+	// Look up town coordinates
+	var toLat, toLng float64
+	found := false
+	for _, town := range geo.NSWTowns {
+		if strings.EqualFold(town.Name, townName) {
+			toLat = town.Latitude
+			toLng = town.Longitude
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		http.Error(w, "town not found", http.StatusNotFound)
+		return
+	}
+
+	// Get route from Valhalla
+	router := geo.NewRouter("")
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	route, err := router.GetRouteWithShape(ctx, fromLat, fromLng, toLat, toLng)
+	if err != nil {
+		http.Error(w, "failed to get route: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Build GeoJSON response
+	geojson := map[string]interface{}{
+		"type": "Feature",
+		"geometry": map[string]interface{}{
+			"type":        "LineString",
+			"coordinates": route.Coordinates,
+		},
+		"properties": map[string]interface{}{
+			"duration_mins": route.DurationMins,
+			"distance_km":   route.DistanceKm,
+			"town":          townName,
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(geojson)
 }
 
 // GetBoundaries handles GET /api/boundaries

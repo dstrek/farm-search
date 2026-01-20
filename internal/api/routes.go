@@ -35,6 +35,7 @@ func NewRouter(database *db.DB, staticDir string) http.Handler {
 		r.Get("/properties/{id}", h.GetProperty)
 		r.Get("/filters/options", h.GetFilterOptions)
 		r.Get("/boundaries", h.GetBoundaries)
+		r.Get("/route", h.GetRoute)
 		r.Post("/scrape/trigger", h.TriggerScrape)
 	})
 

@@ -14,6 +14,8 @@ const PropertyMap = {
     propertiesLayerId: 'properties-layer',
     boundariesSourceId: 'boundaries-source',
     boundariesLayerId: 'boundaries-layer',
+    routeSourceId: 'route-source',
+    routeLayerId: 'route-layer',
     currentBaseLayer: 'streets',  // 'streets' or 'satellite'
     boundariesMinZoom: 12,  // Minimum zoom level to show boundaries
     boundariesLoading: false,  // Prevent concurrent boundary requests
@@ -171,6 +173,36 @@ const PropertyMap = {
                     'line-color': '#16a34a',
                     'line-width': 2,
                     'line-opacity': 0.8
+                }
+            });
+
+            // Route source (for drawing route to nearest town)
+            this.map.addSource(this.routeSourceId, {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] }
+            });
+
+            // Route line layer - white outline (rendered first, below)
+            this.map.addLayer({
+                id: this.routeLayerId + '-outline',
+                type: 'line',
+                source: this.routeSourceId,
+                paint: {
+                    'line-color': '#ffffff',
+                    'line-width': 6,
+                    'line-opacity': 1
+                }
+            });
+
+            // Route line layer - blue fill (rendered on top)
+            this.map.addLayer({
+                id: this.routeLayerId,
+                type: 'line',
+                source: this.routeSourceId,
+                paint: {
+                    'line-color': '#2563eb',  // Blue-600
+                    'line-width': 3,
+                    'line-opacity': 1
                 }
             });
 
@@ -365,6 +397,40 @@ const PropertyMap = {
         } finally {
             this.boundariesLoading = false;
         }
+    },
+
+    // ==================== Route Display ====================
+
+    // Show route from property to nearest town
+    async showRoute(fromLat, fromLng, townName) {
+        if (!townName) {
+            this.clearRoute();
+            return;
+        }
+
+        try {
+            const geojson = await API.getRoute(fromLat, fromLng, townName);
+            if (geojson) {
+                this.onReady(() => {
+                    const source = this.map.getSource(this.routeSourceId);
+                    if (source) {
+                        source.setData(geojson);
+                    }
+                });
+            }
+        } catch (err) {
+            console.warn('Failed to load route:', err);
+        }
+    },
+
+    // Clear the route from map
+    clearRoute() {
+        this.onReady(() => {
+            const source = this.map.getSource(this.routeSourceId);
+            if (source) {
+                source.setData({ type: 'FeatureCollection', features: [] });
+            }
+        });
     },
 
     // ==================== Viewport Persistence ====================

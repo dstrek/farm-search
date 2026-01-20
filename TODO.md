@@ -97,19 +97,18 @@
   - Click marker opens sidebar directly with full details
   - Close via X button or Escape key
   - Removed popup and modal code
-- [ ] Property image gallery/carousel
-  - Larger primary image display area
-  - Thumbnail strip or dot indicators for navigation
+- [x] Property image gallery/carousel
+  - Large primary image with 4:3 aspect ratio
+  - Thumbnail strip for navigation
   - Prev/next buttons with keyboard support (arrow keys)
-  - Show all images (currently limited to 5)
-  - Optional: Lightbox for full-screen viewing
-  - Consider lazy loading for large image sets
-- [ ] Show travel route to nearest town on map
+  - Shows all images (no limit)
+  - Image counter showing position (e.g., "3 / 12")
+- [x] Show travel route to nearest town on map
   - When property sidebar opens, draw route line to nearest town
-  - Use Valhalla routing API (proxy through backend or direct)
-  - Add GeoJSON source/layer for route polyline
-  - Style as dashed line with distinct color
-  - Clear route when property deselected
+  - Added GET /api/route endpoint that proxies Valhalla routing API
+  - Added GeoJSON source/layer for route polyline
+  - Styled as dashed rose-colored line
+  - Route clears when property deselected or sidebar closed
 - [x] Persist map viewport to localStorage
 
 ### Medium Priority

@@ -284,6 +284,34 @@ Manually trigger a scrape job.
 }
 ```
 
+### GET /api/route
+
+Get driving route from a property to a town.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| from_lat | float | Property latitude (required) |
+| from_lng | float | Property longitude (required) |
+| town | string | Town name (required) |
+
+**Response:**
+```json
+{
+  "type": "Feature",
+  "geometry": {
+    "type": "LineString",
+    "coordinates": [[lng, lat], ...]
+  },
+  "properties": {
+    "duration_mins": 45.2,
+    "distance_km": 52.3,
+    "town": "Bathurst"
+  }
+}
+```
+
 ### GET /api/boundaries
 
 Get cadastral lot boundaries within map bounds.
@@ -360,6 +388,13 @@ Right sidebar (380px) that opens when clicking a map marker:
 - Description
 - Link to original listing (shows multiple sources if property listed on multiple sites)
 - Close via X button or Escape key
+
+### Route Display
+
+When a property is selected, a dashed line shows the driving route to the nearest town:
+- Uses Valhalla routing API (proxied through backend)
+- Styled as dashed rose-colored line
+- Route clears when sidebar is closed or Escape is pressed
 
 ## Data Sources
 

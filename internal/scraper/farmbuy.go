@@ -131,6 +131,18 @@ func (s *FarmBuyScraper) scrapePage(ctx context.Context, state string, page int)
 
 		listing := s.convertListing(&data)
 		if listing != nil {
+			// Fetch detail page to get all images
+			if data.URL != "" {
+				images, err := s.fetchDetailImages(ctx, data.URL)
+				if err != nil {
+					log.Printf("Error fetching images for %s: %v", propertyID, err)
+				} else if len(images) > 0 {
+					imgJSON, _ := json.Marshal(images)
+					listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+				}
+				// Rate limiting between detail fetches
+				time.Sleep(300 * time.Millisecond)
+			}
 			listings = append(listings, *listing)
 		}
 	}
@@ -355,6 +367,31 @@ func parseLandSizeString(sizeStr string) float64 {
 	default:
 		return 0
 	}
+}
+
+// fetchDetailImages fetches all images from a property detail page
+func (s *FarmBuyScraper) fetchDetailImages(ctx context.Context, url string) ([]string, error) {
+	body, err := s.fetch(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract full-size images from farmbuycdn (1920_ prefix for full size)
+	// Pattern: farmbuycdn.clodflare.pushcreative.com.au/PROPERTYID/1920_*
+	imgPattern := regexp.MustCompile(`https://farmbuycdn\.clodflare\.pushcreative\.com\.au/\d+/1920_[^"]+\.(jpg|jpeg|png|webp)`)
+	matches := imgPattern.FindAllString(body, -1)
+
+	// Deduplicate
+	seen := make(map[string]bool)
+	var images []string
+	for _, img := range matches {
+		if !seen[img] {
+			seen[img] = true
+			images = append(images, img)
+		}
+	}
+
+	return images, nil
 }
 
 func (s *FarmBuyScraper) fetch(ctx context.Context, url string) (string, error) {
