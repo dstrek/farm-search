@@ -38,6 +38,10 @@ func main() {
 		calculateNearestTowns()
 	case "towndrivetimes":
 		calculateTownDriveTimes()
+	case "schools":
+		calculateNearestSchools()
+	case "schooldrivetimes":
+		calculateSchoolDriveTimes()
 	case "cadastral":
 		fetchCadastralLots()
 	case "seed":
@@ -52,13 +56,15 @@ func printUsage() {
 	fmt.Println("Usage: tools <command> [options]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  isochrones      Generate Sydney drive-time isochrones")
-	fmt.Println("  distances       Calculate property distances to towns, schools, Sydney")
-	fmt.Println("  drivetimes      Calculate drive times to Sutherland for all properties")
-	fmt.Println("  towns           Calculate nearest towns for all properties")
-	fmt.Println("  towndrivetimes  Calculate drive times to nearest towns for all properties")
-	fmt.Println("  cadastral       Fetch cadastral lot boundaries for properties")
-	fmt.Println("  seed            Seed database with sample data")
+	fmt.Println("  isochrones        Generate Sydney drive-time isochrones")
+	fmt.Println("  distances         Calculate property distances to towns, schools, Sydney")
+	fmt.Println("  drivetimes        Calculate drive times to Sutherland for all properties")
+	fmt.Println("  towns             Calculate nearest towns for all properties")
+	fmt.Println("  towndrivetimes    Calculate drive times to nearest towns for all properties")
+	fmt.Println("  schools           Calculate nearest schools for all properties")
+	fmt.Println("  schooldrivetimes  Calculate drive times to nearest schools for all properties")
+	fmt.Println("  cadastral         Fetch cadastral lot boundaries for properties")
+	fmt.Println("  seed              Seed database with sample data")
 }
 
 func generateIsochrones() {
@@ -465,6 +471,214 @@ func calculateNearestTowns() {
 	}
 
 	log.Println("Done!")
+}
+
+func calculateNearestSchools() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	all := flag.Bool("all", false, "Recalculate all properties, not just missing ones")
+	flag.Parse()
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// Load schools
+	schoolData := geo.NewSchoolData()
+	if err := schoolData.LoadFromNSWData(ctx); err != nil {
+		log.Printf("Warning: Could not load school data: %v", err)
+	}
+	log.Printf("Loaded %d schools", len(schoolData.Schools))
+
+	// Get properties
+	var properties []struct {
+		ID        int64   `db:"id"`
+		Latitude  float64 `db:"latitude"`
+		Longitude float64 `db:"longitude"`
+		Suburb    string  `db:"suburb"`
+	}
+
+	var query string
+	if *all {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb 
+				 FROM properties WHERE latitude IS NOT NULL AND longitude IS NOT NULL`
+	} else {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb 
+				 FROM properties WHERE latitude IS NOT NULL AND longitude IS NOT NULL AND nearest_school_1 IS NULL`
+	}
+
+	err = database.Select(&properties, query)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No properties need nearest school calculation")
+		return
+	}
+
+	log.Printf("Calculating nearest schools for %d properties...", len(properties))
+
+	for i, p := range properties {
+		// Find two nearest schools
+		school1, school2 := schoolData.FindTwoNearestSchools(p.Latitude, p.Longitude)
+
+		// Save to database
+		_, err = database.Exec(`
+			UPDATE properties 
+			SET nearest_school_1 = ?, nearest_school_1_km = ?, 
+			    nearest_school_2 = ?, nearest_school_2_km = ?
+			WHERE id = ?`,
+			school1.Name, school1.DistanceKm, school2.Name, school2.DistanceKm, p.ID)
+
+		if err != nil {
+			log.Printf("[%d/%d] Failed to save for property %d: %v", i+1, len(properties), p.ID, err)
+			continue
+		}
+
+		log.Printf("[%d/%d] Property %d (%s): %s (%.1f km), %s (%.1f km)",
+			i+1, len(properties), p.ID, p.Suburb,
+			school1.Name, school1.DistanceKm, school2.Name, school2.DistanceKm)
+	}
+
+	log.Println("Done!")
+}
+
+func calculateSchoolDriveTimes() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	valhallaURL := flag.String("valhalla-url", defaultValhallaURL, "Valhalla server URL")
+	all := flag.Bool("all", false, "Recalculate all properties, not just missing ones")
+	flag.Parse()
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// Load schools to get coordinates
+	schoolData := geo.NewSchoolData()
+	if err := schoolData.LoadFromNSWData(ctx); err != nil {
+		log.Printf("Warning: Could not load school data: %v", err)
+	}
+	log.Printf("Loaded %d schools", len(schoolData.Schools))
+
+	// Build a map of school name -> coordinates for quick lookup
+	schoolCoords := make(map[string]geo.School)
+	for _, school := range schoolData.Schools {
+		schoolCoords[school.Name] = school
+	}
+
+	// Create router
+	log.Printf("Using Valhalla at %s", *valhallaURL)
+	router := geo.NewRouter(*valhallaURL)
+
+	// Get properties that need drive times calculated
+	var properties []struct {
+		ID             int64   `db:"id"`
+		Latitude       float64 `db:"latitude"`
+		Longitude      float64 `db:"longitude"`
+		Suburb         string  `db:"suburb"`
+		NearestSchool1 string  `db:"nearest_school_1"`
+		NearestSchool2 string  `db:"nearest_school_2"`
+	}
+
+	var query string
+	if *all {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb, 
+				 nearest_school_1, COALESCE(nearest_school_2, '') as nearest_school_2
+				 FROM properties 
+				 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+				 AND nearest_school_1 IS NOT NULL`
+	} else {
+		query = `SELECT id, latitude, longitude, COALESCE(suburb, '') as suburb,
+				 nearest_school_1, COALESCE(nearest_school_2, '') as nearest_school_2
+				 FROM properties 
+				 WHERE latitude IS NOT NULL AND longitude IS NOT NULL 
+				 AND nearest_school_1 IS NOT NULL AND nearest_school_1_mins IS NULL`
+	}
+
+	err = database.Select(&properties, query)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No properties need school drive time calculation")
+		return
+	}
+
+	log.Printf("Calculating drive times to nearest schools for %d properties...", len(properties))
+
+	success := 0
+	failed := 0
+
+	for i, p := range properties {
+		var school1Mins, school2Mins *int
+
+		// Get drive time to nearest school 1
+		if school1, ok := schoolCoords[p.NearestSchool1]; ok {
+			result, err := router.GetRoute(ctx, p.Latitude, p.Longitude, school1.Latitude, school1.Longitude)
+			if err != nil {
+				log.Printf("[%d/%d] Failed route to %s for property %d: %v",
+					i+1, len(properties), p.NearestSchool1, p.ID, err)
+				failed++
+				continue
+			}
+			mins := int(result.DurationMins + 0.5)
+			school1Mins = &mins
+		}
+
+		// Get drive time to nearest school 2 (if exists)
+		if p.NearestSchool2 != "" {
+			if school2, ok := schoolCoords[p.NearestSchool2]; ok {
+				result, err := router.GetRoute(ctx, p.Latitude, p.Longitude, school2.Latitude, school2.Longitude)
+				if err != nil {
+					log.Printf("[%d/%d] Failed route to %s for property %d: %v",
+						i+1, len(properties), p.NearestSchool2, p.ID, err)
+					// Continue anyway, we at least have school 1
+				} else {
+					mins := int(result.DurationMins + 0.5)
+					school2Mins = &mins
+				}
+			}
+		}
+
+		// Save to database
+		_, err = database.Exec(`
+			UPDATE properties 
+			SET nearest_school_1_mins = ?, nearest_school_2_mins = ?
+			WHERE id = ?`,
+			school1Mins, school2Mins, p.ID)
+
+		if err != nil {
+			log.Printf("[%d/%d] Failed to save for property %d: %v", i+1, len(properties), p.ID, err)
+			failed++
+			continue
+		}
+
+		school1Str := "N/A"
+		if school1Mins != nil {
+			school1Str = fmt.Sprintf("%d min", *school1Mins)
+		}
+		school2Str := "N/A"
+		if school2Mins != nil {
+			school2Str = fmt.Sprintf("%d min", *school2Mins)
+		}
+
+		log.Printf("[%d/%d] Property %d (%s): %s (%s), %s (%s)",
+			i+1, len(properties), p.ID, p.Suburb,
+			p.NearestSchool1, school1Str, p.NearestSchool2, school2Str)
+
+		success++
+	}
+
+	log.Printf("Done! Success: %d, Failed: %d", success, failed)
 }
 
 func fetchCadastralLots() {

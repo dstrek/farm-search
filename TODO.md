@@ -115,12 +115,18 @@
   - Modal carousel with prev/next navigation
   - Close via X button, Escape key, or clicking outside
   - Keyboard navigation (arrow keys)
+- [x] Drive time to nearest primary school
+  - Added schema columns: nearest_school_1/2, nearest_school_1/2_km, nearest_school_1/2_mins
+  - Added `schools` and `schooldrivetimes` tool commands (make targets added)
+  - Loads ~1600 NSW primary schools from data.nsw.gov.au
+  - Replaced distance filter with drive time filter (5-60 min)
+  - Display nearest schools in property sidebar (abbreviated "Public School" to "PS")
+  - Note: Run `schooldrivetimes` with Valhalla to populate drive times
 
 ### Medium Priority
 - [ ] Add Domain.com.au scraper (may have bot protection)
 - [ ] Implement scheduled daily scraping (cron)
 - [ ] Improve mobile responsive layout
-- [ ] Show distance values in property popup/modal
 
 ### Low Priority
 - [ ] Add error handling UI (toast notifications)

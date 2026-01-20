@@ -28,7 +28,13 @@ CREATE TABLE IF NOT EXISTS properties (
     nearest_town_1_mins INTEGER,-- Drive time to nearest town in minutes
     nearest_town_2 TEXT,        -- Name of second nearest town  
     nearest_town_2_km REAL,     -- Distance to second nearest town in km
-    nearest_town_2_mins INTEGER -- Drive time to second nearest town in minutes
+    nearest_town_2_mins INTEGER,-- Drive time to second nearest town in minutes
+    nearest_school_1 TEXT,      -- Name of nearest public school
+    nearest_school_1_km REAL,   -- Distance to nearest school in km
+    nearest_school_1_mins INTEGER, -- Drive time to nearest school in minutes
+    nearest_school_2 TEXT,      -- Name of second nearest school
+    nearest_school_2_km REAL,   -- Distance to second nearest school in km
+    nearest_school_2_mins INTEGER  -- Drive time to second nearest school in minutes
 );
 
 -- Pre-computed distances for filtering

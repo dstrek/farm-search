@@ -69,4 +69,11 @@ func runMigrations(db *sqlx.DB) {
 	// Add nearest town drive time columns
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_1_mins INTEGER")
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_town_2_mins INTEGER")
+	// Add nearest school columns
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_1 TEXT")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_1_km REAL")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_1_mins INTEGER")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2 TEXT")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_km REAL")
+	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_mins INTEGER")
 }

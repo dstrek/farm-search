@@ -389,6 +389,21 @@ const App = {
       nearestTownsHtml = `<div class="nearest-towns">${townsContent}</div>`;
     }
 
+    // Format nearest schools if available (only show if drive time is available)
+    // Abbreviate "Public School" to "PS"
+    const abbreviateSchool = (name) => name.replace(/ Public School$/i, " PS");
+    
+    let nearestSchoolsHtml = "";
+    if (property.nearest_school_1 && property.nearest_school_1_mins) {
+      let schoolsContent = `<span class="school-item">${abbreviateSchool(property.nearest_school_1)} (${property.nearest_school_1_mins} min)</span>`;
+
+      if (property.nearest_school_2 && property.nearest_school_2_mins) {
+        schoolsContent += `<span class="school-item">${abbreviateSchool(property.nearest_school_2)} (${property.nearest_school_2_mins} min)</span>`;
+      }
+
+      nearestSchoolsHtml = `<div class="nearest-schools">${schoolsContent}</div>`;
+    }
+
     container.innerHTML = `
             <h2>${property.address || "Property Details"}</h2>
             <div class="price">${property.price_text || "Contact Agent"}</div>
@@ -399,6 +414,7 @@ const App = {
             </div>
             ${driveTimeHtml}
             ${nearestTownsHtml}
+            ${nearestSchoolsHtml}
             ${imagesHtml}
             <div class="description">${property.description || "No description available."}</div>
             ${sourcesHtml}

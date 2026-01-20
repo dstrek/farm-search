@@ -204,8 +204,9 @@ List properties with optional filters.
 | land_size_max | float | Maximum land size (sqm) |
 | distance_sydney_max | float | Max distance from Sydney (km) |
 | distance_town_max | float | Max distance from nearest town (km) |
-| distance_school_max | float | Max distance from nearest school (km) |
 | drive_time_sydney_max | int | Max drive time from Sydney (minutes) |
+| drive_time_town_max | int | Max drive time to nearest town (minutes) |
+| drive_time_school_max | int | Max drive time to nearest primary school (minutes) |
 | bounds | string | Map viewport: "sw_lat,sw_lng,ne_lat,ne_lng" |
 | limit | int | Max results (default 100, max 500) |
 | offset | int | Pagination offset |
@@ -381,7 +382,7 @@ Width: 260px (collapsible on mobile)
 | Min Land Size | Range slider | 10-100 HA in 10 HA increments |
 | Drive to Sutherland | Range slider | 15-255 min in 15-min increments |
 | Drive to nearest town | Range slider | 5-60 min in 5-min increments |
-| Distance from school | Range slider | 0-50 km |
+| Drive to primary school | Range slider | 5-60 min in 5-min increments |
 | Map Style | Button group | Streets / Satellite toggle |
 | Drive time area | Dropdown | Isochrone overlay (1-3 hours) |
 
@@ -395,6 +396,7 @@ Right sidebar (380px) that opens when clicking a map marker:
 - Property type, beds, baths, land size
 - Drive time to Sutherland
 - Nearest towns with drive times
+- Nearest primary schools with drive times (abbreviated as "PS")
 - Image gallery with thumbnails and prev/next navigation
 - Description
 - Link to original listing (shows multiple sources if property listed on multiple sites)
@@ -455,7 +457,7 @@ When a property is selected, a dashed line shows the driving route to the neares
 | Data | Source | Format |
 |------|--------|--------|
 | NSW Towns | Embedded in code | Go slice of Location structs |
-| NSW Schools | NSW Education Data Hub | CSV (cached locally) |
+| NSW Primary Schools | data.nsw.gov.au | CSV (fetched on demand, ~1600 schools) |
 | Cadastral | NSW Spatial Services | ArcGIS REST API |
 
 ## Configuration
@@ -471,14 +473,20 @@ When a property is selected, a dashed line shows the driving route to the neares
 ### Build Commands
 
 ```makefile
-make setup      # Install deps, create DB, seed sample data
-make run        # Start dev server with live reload
-make build      # Build production binaries
-make scrape     # Run property scraper
-make seed       # Seed sample data
-make isochrones # Generate isochrone GeoJSON files
-make distances  # Pre-compute property distances
-make clean      # Remove build artifacts
+make setup           # Install deps, create DB, seed sample data
+make run             # Start dev server with live reload
+make build           # Build production binaries
+make scrape          # Run property scraper
+make seed            # Seed sample data
+make isochrones      # Generate isochrone GeoJSON files
+make distances       # Pre-compute property distances (straight-line)
+make drivetimes      # Calculate drive times to Sutherland
+make towns           # Calculate nearest towns for properties
+make towndrivetimes  # Calculate drive times to nearest towns
+make schools         # Calculate nearest primary schools for properties
+make schooldrivetimes # Calculate drive times to nearest schools
+make cadastral       # Fetch cadastral lot boundaries
+make clean           # Remove build artifacts
 ```
 
 ## Future Enhancements

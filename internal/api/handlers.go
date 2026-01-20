@@ -74,12 +74,6 @@ func parsePropertyFilter(q map[string][]string) db.PropertyFilter {
 			filter.DistanceTownMax = &val
 		}
 	}
-	if v := get("distance_school_max"); v != "" {
-		if val, err := strconv.ParseFloat(v, 64); err == nil {
-			filter.DistanceSchoolMax = &val
-		}
-	}
-
 	// Parse drive time filters
 	if v := get("drive_time_sydney_max"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil {
@@ -89,6 +83,11 @@ func parsePropertyFilter(q map[string][]string) db.PropertyFilter {
 	if v := get("drive_time_town_max"); v != "" {
 		if val, err := strconv.Atoi(v); err == nil {
 			filter.DriveTimeTownMax = &val
+		}
+	}
+	if v := get("drive_time_school_max"); v != "" {
+		if val, err := strconv.Atoi(v); err == nil {
+			filter.DriveTimeSchoolMax = &val
 		}
 	}
 

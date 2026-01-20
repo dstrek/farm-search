@@ -378,6 +378,23 @@ select {
     font-weight: 500;
 }
 
+#property-detail .nearest-schools {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+}
+
+#property-detail .nearest-schools .school-item {
+    display: inline-block;
+    padding: 4px 10px;
+    background: #e0f2fe;
+    border-radius: 4px;
+    margin-right: 6px;
+    margin-bottom: 4px;
+    color: var(--text-color);
+    font-weight: 500;
+}
+
 /* Image Gallery */
 .image-gallery {
     margin-bottom: 16px;

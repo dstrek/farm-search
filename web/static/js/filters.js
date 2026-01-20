@@ -4,7 +4,7 @@ const Filters = {
     // Storage configuration
     // Bump this version when filter structure changes to auto-reset invalid saved data
     STORAGE_KEY: 'farm-search-filters',
-    STORAGE_VERSION: 4,
+    STORAGE_VERSION: 5,
 
     // Define expected filter schema for validation
     // Each key maps to: { type, min, max } for range validation
@@ -13,7 +13,7 @@ const Filters = {
         'land-size-min': { type: 'number', min: 0, max: 10 },
         'drive-time-sydney': { type: 'number', min: 15, max: 255 },
         'drive-time-town': { type: 'number', min: 5, max: 60 },
-        'distance-school': { type: 'number', min: 0, max: 50 },
+        'drive-time-school': { type: 'number', min: 5, max: 60 },
         'isochrone-overlay': { type: 'string', allowed: ['', '60', '90', '120', '150', '180'] }
     },
 
@@ -66,10 +66,10 @@ const Filters = {
             filters.driveTimeTownMax = parseInt(driveTimeTown.value, 10);
         }
 
-        // Distance from school
-        const distanceSchool = document.getElementById('distance-school');
-        if (parseInt(distanceSchool.value, 10) < parseInt(distanceSchool.max, 10)) {
-            filters.distanceSchoolMax = parseInt(distanceSchool.value, 10);
+        // Drive time to nearest school (in minutes)
+        const driveTimeSchool = document.getElementById('drive-time-school');
+        if (parseInt(driveTimeSchool.value, 10) < parseInt(driveTimeSchool.max, 10)) {
+            filters.driveTimeSchoolMax = parseInt(driveTimeSchool.value, 10);
         }
 
         return filters;
@@ -93,9 +93,9 @@ const Filters = {
         driveTimeTown.value = driveTimeTown.max;
         this.updateRangeDisplay('drive-time-town', 'Any');
 
-        const distanceSchool = document.getElementById('distance-school');
-        distanceSchool.value = distanceSchool.max;
-        this.updateRangeDisplay('distance-school', 'Any');
+        const driveTimeSchool = document.getElementById('drive-time-school');
+        driveTimeSchool.value = driveTimeSchool.max;
+        this.updateRangeDisplay('drive-time-school', 'Any');
 
         document.getElementById('isochrone-overlay').value = '';
         if (typeof PropertyMap !== 'undefined') {
@@ -154,8 +154,8 @@ const Filters = {
         this.initDriveTimeSlider('drive-time-sydney', onApplyAndSave);
         this.initDriveTimeSliderTown('drive-time-town', onApplyAndSave);
 
-        // Range sliders - apply on change (mouseup/touchend)
-        this.initRangeSlider('distance-school', 50, 'km', onApplyAndSave);
+        // Drive time to school slider
+        this.initDriveTimeSliderSchool('drive-time-school', onApplyAndSave);
 
         // Isochrone overlay dropdown - updates map display only (not filtering)
         document.getElementById('isochrone-overlay').addEventListener('change', (e) => {
@@ -278,6 +278,25 @@ const Filters = {
         input.addEventListener('change', onApply);
     },
 
+    // Initialize drive time to school slider (5 min increments, 5-60 min)
+    initDriveTimeSliderSchool(inputId, onApply) {
+        const input = document.getElementById(inputId);
+        const display = document.getElementById(`${inputId}-value`);
+
+        // Update display on input (while dragging)
+        input.addEventListener('input', () => {
+            const mins = parseInt(input.value, 10);
+            if (mins >= 60) {
+                display.textContent = 'Any';
+            } else {
+                display.textContent = `${mins} min`;
+            }
+        });
+
+        // Apply filter on change (when released)
+        input.addEventListener('change', onApply);
+    },
+
     // Update results count display
     updateResultsCount(count) {
         document.getElementById('results-count').textContent = count;
@@ -347,7 +366,7 @@ const Filters = {
             'land-size-min': parseInt(document.getElementById('land-size-min').value, 10),
             'drive-time-sydney': parseInt(document.getElementById('drive-time-sydney').value, 10),
             'drive-time-town': parseInt(document.getElementById('drive-time-town').value, 10),
-            'distance-school': parseInt(document.getElementById('distance-school').value, 10),
+            'drive-time-school': parseInt(document.getElementById('drive-time-school').value, 10),
             'isochrone-overlay': document.getElementById('isochrone-overlay').value
         };
     },
@@ -427,11 +446,11 @@ const Filters = {
             this.updateRangeDisplay('drive-time-town', display);
         }
 
-        if (filters['distance-school'] !== undefined) {
-            const el = document.getElementById('distance-school');
-            el.value = filters['distance-school'];
-            const display = filters['distance-school'] >= 50 ? 'Any' : `${filters['distance-school']} km`;
-            this.updateRangeDisplay('distance-school', display);
+        if (filters['drive-time-school'] !== undefined) {
+            const el = document.getElementById('drive-time-school');
+            el.value = filters['drive-time-school'];
+            const display = filters['drive-time-school'] >= 60 ? 'Any' : `${filters['drive-time-school']} min`;
+            this.updateRangeDisplay('drive-time-school', display);
         }
 
         // Restore isochrone overlay dropdown (but don't trigger load yet)

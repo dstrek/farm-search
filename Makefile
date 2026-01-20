@@ -1,4 +1,4 @@
-.PHONY: run build scrape migrate clean help seed isochrones distances drivetimes towns towndrivetimes cadastral deploy setup-server
+.PHONY: run build scrape migrate clean help seed isochrones distances drivetimes towns towndrivetimes schools schooldrivetimes cadastral deploy setup-server
 
 # Default target
 help:
@@ -14,6 +14,8 @@ help:
 	@echo "  make drivetimes    - Calculate drive times to Sutherland"
 	@echo "  make towns         - Calculate nearest towns for properties"
 	@echo "  make towndrivetimes - Calculate drive times to nearest towns"
+	@echo "  make schools       - Calculate nearest primary schools for properties"
+	@echo "  make schooldrivetimes - Calculate drive times to nearest schools"
 	@echo "  make cadastral     - Fetch cadastral lot boundaries"
 	@echo "  make migrate       - Initialize/migrate the database"
 	@echo "  make clean         - Remove build artifacts"
@@ -63,6 +65,14 @@ towns:
 # Calculate drive times to nearest towns
 towndrivetimes:
 	go run ./cmd/tools towndrivetimes
+
+# Calculate nearest primary schools for properties
+schools:
+	go run ./cmd/tools schools
+
+# Calculate drive times to nearest schools
+schooldrivetimes:
+	go run ./cmd/tools schooldrivetimes
 
 # Fetch cadastral lot boundaries
 cadastral:
