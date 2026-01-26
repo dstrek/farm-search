@@ -79,12 +79,12 @@ func (s *REAScraper) ScrapeListings(ctx context.Context, region, propertyType st
 
 func (s *REAScraper) scrapePage(ctx context.Context, region, propertyType string, page int) ([]models.Property, bool, error) {
 	// Build the search URL - use map view for ~200 results per page with coordinates
-	// The bounding box covers all of NSW
-	// Format: /map-N with boundingBox parameter: north_lat,west_lng,south_lat,east_lng
-	nswBoundingBox := "-28.157020,140.999279,-37.505280,159.105444" // covers all NSW
+	// Targeting specific NSW regions within reasonable distance of Sydney
+	// Price range: $0 - $2,000,000, Size: 10+ hectares (100,000 sqm)
+	regions := "central+tablelands,+nsw;+southern+tablelands,+nsw;+hunter+region,+nsw;+southern+highlands+-+greater+region,+nsw;+illawarra+region,+nsw;+central+coast,+nsw;+blue+mountains+-+region,+nsw;+wollongong+-+greater+region,+nsw;+south+coast,+nsw"
 	searchURL := fmt.Sprintf(
-		"https://www.realestate.com.au/buy/property-house-land-acreage-rural-size-100000-in-%s/map-%d?boundingBox=%s&activeSort=list-date",
-		region, page, url.QueryEscape(nswBoundingBox),
+		"https://www.realestate.com.au/buy/property-house-land-acreage-rural-size-100000-between-0-2000000-in-%s/map-%d?includeSurrounding=false&activeSort=list-date",
+		regions, page,
 	)
 
 	var body string
@@ -173,9 +173,8 @@ func (s *REAScraper) parseListingsPage(html, propertyType string) ([]models.Prop
 			log.Printf("Failed to parse ArgonautExchange JSON: %v", err)
 		} else {
 			// Try map view format first (has coordinates, 200 items per page)
-			listings = s.extractFromMapView(data, propertyType)
+			listings, hasMore := s.extractFromMapView(data, propertyType)
 			if len(listings) > 0 {
-				hasMore := strings.Contains(html, `rel="next"`)
 				log.Printf("Extracted %d listings from map view (with coordinates)", len(listings))
 				return listings, hasMore
 			}
@@ -327,26 +326,33 @@ func (s *REAScraper) parseListingURL(path, listingID, propertyType string) *mode
 // The structure is: resi-property_map-results-web -> fetchMapSearchData (JSON string) ->
 // data -> buyMapSearch -> results -> items
 // This format includes coordinates (pinGeocode) and returns ~200 items per page
-func (s *REAScraper) extractFromMapView(data map[string]interface{}, propertyType string) []models.Property {
+// Returns listings and hasMore (true if there are more pages to fetch)
+func (s *REAScraper) extractFromMapView(data map[string]interface{}, propertyType string) ([]models.Property, bool) {
 	var listings []models.Property
+	hasMore := false
 
 	// Navigate to resi-property_map-results-web
 	resi, ok := data["resi-property_map-results-web"].(map[string]interface{})
 	if !ok {
-		return listings
+		return listings, false
 	}
 
 	// Get fetchMapSearchData (it's a JSON string)
 	mapDataStr, ok := resi["fetchMapSearchData"].(string)
 	if !ok {
-		return listings
+		return listings, false
 	}
 
 	// Parse the map data JSON
 	var mapData map[string]interface{}
 	if err := json.Unmarshal([]byte(mapDataStr), &mapData); err != nil {
 		log.Printf("Failed to parse fetchMapSearchData: %v", err)
-		return listings
+		return listings, false
+	}
+
+	// Check hasNext from the map data for pagination
+	if hasNext, ok := mapData["hasNext"].(bool); ok {
+		hasMore = hasNext
 	}
 
 	// Get the inner data - can be either a string or already parsed map
@@ -355,28 +361,39 @@ func (s *REAScraper) extractFromMapView(data map[string]interface{}, propertyTyp
 	case string:
 		if err := json.Unmarshal([]byte(d), &innerData); err != nil {
 			log.Printf("Failed to parse inner data string: %v", err)
-			return listings
+			return listings, false
 		}
 	case map[string]interface{}:
 		innerData = d
 	default:
-		return listings
+		return listings, false
 	}
 
 	// Navigate to buyMapSearch -> results -> items
 	buyMapSearch, ok := innerData["buyMapSearch"].(map[string]interface{})
 	if !ok {
-		return listings
+		return listings, false
 	}
 
 	results, ok := buyMapSearch["results"].(map[string]interface{})
 	if !ok {
-		return listings
+		return listings, false
+	}
+
+	// Check resultsCount vs totalResultsCount to determine if there are more pages
+	if resultsCount, ok := results["resultsCount"].(float64); ok {
+		if totalCount, ok := results["totalResultsCount"].(float64); ok {
+			// If we got a full page (~200 items) and there are more total results, there are more pages
+			if int(resultsCount) >= 190 && int(totalCount) > int(resultsCount) {
+				hasMore = true
+			}
+			log.Printf("Results: %d of %d total (hasMore: %v)", int(resultsCount), int(totalCount), hasMore)
+		}
 	}
 
 	items, ok := results["items"].([]interface{})
 	if !ok {
-		return listings
+		return listings, false
 	}
 
 	// Parse each item
@@ -409,7 +426,7 @@ func (s *REAScraper) extractFromMapView(data map[string]interface{}, propertyTyp
 		}
 	}
 
-	return listings
+	return listings, hasMore
 }
 
 // parseMapViewListing parses a listing from the map view format
