@@ -702,3 +702,54 @@ func (db *DB) GetBoundariesInBounds(f PropertyFilter) ([]models.CadastralLot, er
 	err := db.Select(&lots, query, args...)
 	return lots, err
 }
+
+// REAPropertyForDetails represents a REA property that needs details fetched
+type REAPropertyForDetails struct {
+	ID         int64  `db:"id"`
+	ExternalID string `db:"external_id"`
+	URL        string `db:"url"`
+	Address    string `db:"address"`
+	Suburb     string `db:"suburb"`
+}
+
+// GetREAPropertiesWithoutDetails returns REA properties that haven't had their details scraped yet
+func (db *DB) GetREAPropertiesWithoutDetails(limit int) ([]REAPropertyForDetails, error) {
+	query := `
+		SELECT id, external_id, url, COALESCE(address, '') as address, COALESCE(suburb, '') as suburb
+		FROM properties 
+		WHERE source = 'rea' 
+		  AND details_scraped_at IS NULL
+		ORDER BY scraped_at DESC
+	`
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	var properties []REAPropertyForDetails
+	err := db.Select(&properties, query)
+	return properties, err
+}
+
+// MarkPropertyDetailsScraped marks a property as having had its details successfully scraped
+func (db *DB) MarkPropertyDetailsScraped(id int64) error {
+	_, err := db.Exec("UPDATE properties SET details_scraped_at = CURRENT_TIMESTAMP WHERE id = ?", id)
+	return err
+}
+
+// UpdatePropertyFromDetails updates a property with details fetched from the listing page
+func (db *DB) UpdatePropertyFromDetails(id int64, description, images string, landSizeSqm *float64, bedrooms, bathrooms *int64, priceMin, priceMax *int64) error {
+	_, err := db.Exec(`
+		UPDATE properties SET
+			description = COALESCE(?, description),
+			images = COALESCE(?, images),
+			land_size_sqm = COALESCE(?, land_size_sqm),
+			bedrooms = COALESCE(?, bedrooms),
+			bathrooms = COALESCE(?, bathrooms),
+			price_min = COALESCE(?, price_min),
+			price_max = COALESCE(?, price_max),
+			details_scraped_at = CURRENT_TIMESTAMP,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`, description, images, landSizeSqm, bedrooms, bathrooms, priceMin, priceMax, id)
+	return err
+}

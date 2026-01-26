@@ -959,31 +959,50 @@ func parseLandSize(sizeStr string) float64 {
 }
 
 // FetchListingDetails fetches full details for a single listing
+// Uses ScrapingBee if configured, otherwise falls back to direct HTTP (will likely be blocked)
 func (s *REAScraper) FetchListingDetails(ctx context.Context, listingURL string) (*models.Property, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", listingURL, nil)
-	if err != nil {
-		return nil, err
+	var body string
+	var err error
+
+	if s.useProxy && s.scrapingBee != nil {
+		opts := DefaultREAOptions()
+		body, err = s.scrapingBee.FetchHTML(ctx, listingURL, opts)
+		if err != nil {
+			return nil, fmt.Errorf("ScrapingBee fetch failed: %w", err)
+		}
+	} else {
+		// Direct HTTP request (will likely fail due to Kasada)
+		req, err := http.NewRequestWithContext(ctx, "GET", listingURL, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("User-Agent", s.userAgent)
+		req.Header.Set("Accept", "text/html,application/xhtml+xml")
+
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		}
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		body = string(bodyBytes)
 	}
 
-	req.Header.Set("User-Agent", s.userAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	// Check if we got blocked
+	if len(body) < 2000 && strings.Contains(body, "KPSDK") {
+		return nil, fmt.Errorf("blocked by Kasada bot protection")
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.parseListingDetails(string(body), listingURL)
+	return s.parseListingDetails(body, listingURL)
 }
 
 func (s *REAScraper) parseListingDetails(html, listingURL string) (*models.Property, error) {
@@ -1004,7 +1023,7 @@ func (s *REAScraper) parseListingDetails(html, listingURL string) (*models.Prope
 		UpdatedAt:  now,
 	}
 
-	// Try to find embedded JSON with full listing data
+	// Try to find embedded JSON with full listing data (JSON-LD)
 	jsonPattern := regexp.MustCompile(`<script[^>]*type="application/ld\+json"[^>]*>(\{[^<]+\})</script>`)
 	jsonMatches := jsonPattern.FindAllStringSubmatch(html, -1)
 
@@ -1042,16 +1061,211 @@ func (s *REAScraper) parseListingDetails(html, listingURL string) (*models.Prope
 					listing.Longitude = sql.NullFloat64{Float64: lng, Valid: true}
 				}
 			}
+			// Extract images from JSON-LD
+			if images, ok := data["image"].([]interface{}); ok {
+				var imgURLs []string
+				for _, img := range images {
+					if imgURL, ok := img.(string); ok && imgURL != "" {
+						imgURLs = append(imgURLs, imgURL)
+					}
+				}
+				if len(imgURLs) > 0 {
+					imgJSON, _ := json.Marshal(imgURLs)
+					listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+				}
+			} else if imgURL, ok := data["image"].(string); ok && imgURL != "" {
+				imgJSON, _ := json.Marshal([]string{imgURL})
+				listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+			}
 		}
 	}
 
-	// Extract price from page
-	pricePattern := regexp.MustCompile(`class="[^"]*property-price[^"]*"[^>]*>([^<]+)<`)
-	if matches := pricePattern.FindStringSubmatch(html); len(matches) > 1 {
-		listing.PriceText = sql.NullString{String: strings.TrimSpace(matches[1]), Valid: true}
+	// Try to extract from ArgonautExchange JSON (more detailed data)
+	argonautPattern := regexp.MustCompile(`window\.ArgonautExchange\s*=\s*(\{.+?\});?\s*</script>`)
+	if argMatches := argonautPattern.FindStringSubmatch(html); len(argMatches) >= 2 {
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(argMatches[1]), &data); err == nil {
+			s.extractDetailsFromArgonaut(data, listing)
+		}
+	}
+
+	// Extract price from page if not already set
+	if !listing.PriceText.Valid {
+		pricePatterns := []*regexp.Regexp{
+			regexp.MustCompile(`class="[^"]*property-price[^"]*"[^>]*>([^<]+)<`),
+			regexp.MustCompile(`data-testid="[^"]*price[^"]*"[^>]*>([^<]+)<`),
+			regexp.MustCompile(`<span[^>]*class="[^"]*Price[^"]*"[^>]*>([^<]+)</span>`),
+		}
+		for _, pattern := range pricePatterns {
+			if priceMatches := pattern.FindStringSubmatch(html); len(priceMatches) > 1 {
+				priceText := strings.TrimSpace(priceMatches[1])
+				if priceText != "" {
+					listing.PriceText = sql.NullString{String: priceText, Valid: true}
+					break
+				}
+			}
+		}
+	}
+
+	// Extract land size from page if not already set
+	if !listing.LandSizeSqm.Valid {
+		landPatterns := []*regexp.Regexp{
+			regexp.MustCompile(`([\d,]+(?:\.\d+)?)\s*(hectares?|ha)\b`),
+			regexp.MustCompile(`([\d,]+(?:\.\d+)?)\s*(acres?)\b`),
+			regexp.MustCompile(`Land size[:\s]*([\d,]+(?:\.\d+)?)\s*(m²|sqm|hectares?|ha|acres?)`),
+		}
+		for _, pattern := range landPatterns {
+			if sizeMatches := pattern.FindStringSubmatch(strings.ToLower(html)); len(sizeMatches) >= 2 {
+				sizeStr := sizeMatches[1]
+				unit := ""
+				if len(sizeMatches) >= 3 {
+					unit = sizeMatches[2]
+				}
+				if sqm := parseLandSize(sizeStr + " " + unit); sqm > 0 {
+					listing.LandSizeSqm = sql.NullFloat64{Float64: sqm, Valid: true}
+					break
+				}
+			}
+		}
+	}
+
+	// Extract bedrooms/bathrooms from page if not already set
+	if !listing.Bedrooms.Valid {
+		bedPattern := regexp.MustCompile(`(\d+)\s*(?:bed|bedroom)`)
+		if bedMatches := bedPattern.FindStringSubmatch(strings.ToLower(html)); len(bedMatches) >= 2 {
+			if beds, err := strconv.ParseInt(bedMatches[1], 10, 64); err == nil {
+				listing.Bedrooms = sql.NullInt64{Int64: beds, Valid: true}
+			}
+		}
+	}
+	if !listing.Bathrooms.Valid {
+		bathPattern := regexp.MustCompile(`(\d+)\s*(?:bath|bathroom)`)
+		if bathMatches := bathPattern.FindStringSubmatch(strings.ToLower(html)); len(bathMatches) >= 2 {
+			if baths, err := strconv.ParseInt(bathMatches[1], 10, 64); err == nil {
+				listing.Bathrooms = sql.NullInt64{Int64: baths, Valid: true}
+			}
+		}
+	}
+
+	// Extract images from page if not already set
+	if !listing.Images.Valid {
+		var images []string
+		// Look for image URLs in various patterns
+		imgPatterns := []*regexp.Regexp{
+			regexp.MustCompile(`"(https://[^"]+i\.realestate(?:view)?\.com\.au/[^"]+\.(?:jpg|jpeg|png|webp))"`),
+			regexp.MustCompile(`src="(https://[^"]+i\.realestate(?:view)?\.com\.au/[^"]+\.(?:jpg|jpeg|png|webp))"`),
+		}
+		seenImages := make(map[string]bool)
+		for _, pattern := range imgPatterns {
+			for _, imgMatch := range pattern.FindAllStringSubmatch(html, -1) {
+				if len(imgMatch) >= 2 {
+					imgURL := imgMatch[1]
+					// Skip thumbnails
+					if strings.Contains(imgURL, "thumbnail") || strings.Contains(imgURL, "50x50") {
+						continue
+					}
+					if !seenImages[imgURL] {
+						seenImages[imgURL] = true
+						images = append(images, imgURL)
+					}
+				}
+			}
+		}
+		if len(images) > 0 {
+			imgJSON, _ := json.Marshal(images)
+			listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+		}
 	}
 
 	return listing, nil
+}
+
+// extractDetailsFromArgonaut extracts property details from ArgonautExchange JSON
+func (s *REAScraper) extractDetailsFromArgonaut(data map[string]interface{}, listing *models.Property) {
+	// Try to find listing data in the nested structure
+	// The structure varies, so we search recursively
+	s.searchArgonautForDetails(data, listing, 0)
+}
+
+// searchArgonautForDetails recursively searches for property details in ArgonautExchange
+func (s *REAScraper) searchArgonautForDetails(data interface{}, listing *models.Property, depth int) {
+	if depth > 10 {
+		return
+	}
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Check if this looks like property data
+		if _, hasID := v["id"]; hasID {
+			// Extract description
+			if desc, ok := v["description"].(string); ok && desc != "" && !listing.Description.Valid {
+				listing.Description = sql.NullString{String: desc, Valid: true}
+			}
+			// Extract land size
+			if propertySizes, ok := v["propertySizes"].(map[string]interface{}); ok {
+				if land, ok := propertySizes["land"].(map[string]interface{}); ok {
+					if displayVal, ok := land["displayValue"].(string); ok {
+						if sqm := parseLandSize(displayVal); sqm > 0 && !listing.LandSizeSqm.Valid {
+							listing.LandSizeSqm = sql.NullFloat64{Float64: sqm, Valid: true}
+						}
+					}
+				}
+			}
+			// Extract features
+			if features, ok := v["generalFeatures"].(map[string]interface{}); ok {
+				if beds, ok := features["bedrooms"].(map[string]interface{}); ok {
+					if val, ok := beds["value"].(float64); ok && !listing.Bedrooms.Valid {
+						listing.Bedrooms = sql.NullInt64{Int64: int64(val), Valid: true}
+					}
+				}
+				if baths, ok := features["bathrooms"].(map[string]interface{}); ok {
+					if val, ok := baths["value"].(float64); ok && !listing.Bathrooms.Valid {
+						listing.Bathrooms = sql.NullInt64{Int64: int64(val), Valid: true}
+					}
+				}
+			}
+			// Extract price
+			if price, ok := v["price"].(map[string]interface{}); ok {
+				if display, ok := price["display"].(string); ok && display != "" && !listing.PriceText.Valid {
+					listing.PriceText = sql.NullString{String: display, Valid: true}
+				}
+			}
+			// Extract images
+			if media, ok := v["media"].(map[string]interface{}); ok {
+				if images, ok := media["images"].([]interface{}); ok && !listing.Images.Valid {
+					var imgURLs []string
+					for _, img := range images {
+						if imgMap, ok := img.(map[string]interface{}); ok {
+							if templatedURL, ok := imgMap["templatedUrl"].(string); ok {
+								imgURL := strings.ReplaceAll(templatedURL, "{size}", "800x600")
+								imgURLs = append(imgURLs, imgURL)
+							}
+						}
+					}
+					if len(imgURLs) > 0 {
+						imgJSON, _ := json.Marshal(imgURLs)
+						listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+					}
+				}
+			}
+		}
+		// Recursively search nested objects
+		for _, val := range v {
+			s.searchArgonautForDetails(val, listing, depth+1)
+		}
+	case []interface{}:
+		for _, item := range v {
+			s.searchArgonautForDetails(item, listing, depth+1)
+		}
+	case string:
+		// Try to parse as JSON (some values are JSON strings)
+		if len(v) > 2 && (v[0] == '{' || v[0] == '[') {
+			var nested interface{}
+			if err := json.Unmarshal([]byte(v), &nested); err == nil {
+				s.searchArgonautForDetails(nested, listing, depth+1)
+			}
+		}
+	}
 }
 
 // Helper to URL encode address for geocoding

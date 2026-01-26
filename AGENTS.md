@@ -64,6 +64,10 @@ make setup-server # Initial server setup (run once)
 # Cadastral data
 go run cmd/tools/main.go cadastral        # Fetch lots for properties missing data
 go run cmd/tools/main.go cadastral -all   # Re-fetch lots for all properties
+
+# REA details scraper (fetches full listing details for REA properties)
+go run cmd/tools/main.go readetails -scrapingbee $SCRAPINGBEE_API_KEY
+go run cmd/tools/main.go readetails -scrapingbee $SCRAPINGBEE_API_KEY -limit 10  # Limit to 10 properties
 ```
 
 ## Development Guidelines

@@ -12,6 +12,7 @@ import (
 
 	"farm-search/internal/db"
 	"farm-search/internal/geo"
+	"farm-search/internal/scraper"
 )
 
 // Default Valhalla URL - local instance in this container
@@ -44,6 +45,8 @@ func main() {
 		calculateSchoolDriveTimes()
 	case "cadastral":
 		fetchCadastralLots()
+	case "readetails":
+		fetchREADetails()
 	case "seed":
 		seedSampleData()
 	default:
@@ -64,6 +67,7 @@ func printUsage() {
 	fmt.Println("  schools           Calculate nearest schools for all properties")
 	fmt.Println("  schooldrivetimes  Calculate drive times to nearest schools for all properties")
 	fmt.Println("  cadastral         Fetch cadastral lot boundaries for properties")
+	fmt.Println("  readetails        Fetch full listing details for REA properties")
 	fmt.Println("  seed              Seed database with sample data")
 }
 
@@ -823,4 +827,135 @@ func fetchCadastralLots() {
 
 	totalLots, _ := database.GetCadastralLotCount()
 	log.Printf("Done! Properties: %d success, %d failed. Total lots in DB: %d", success, failed, totalLots)
+}
+
+func fetchREADetails() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	scrapingBeeKey := flag.String("scrapingbee", "", "ScrapingBee API key (required)")
+	limit := flag.Int("limit", 0, "Maximum number of properties to process (0 = no limit)")
+	delay := flag.Duration("delay", 3*time.Second, "Delay between requests")
+	flag.Parse()
+
+	// Also check environment variable for ScrapingBee key
+	if *scrapingBeeKey == "" {
+		*scrapingBeeKey = os.Getenv("SCRAPINGBEE_API_KEY")
+	}
+
+	if *scrapingBeeKey == "" {
+		log.Fatal("ScrapingBee API key is required. Use -scrapingbee flag or set SCRAPINGBEE_API_KEY env var")
+	}
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	ctx := context.Background()
+
+	// Create REA scraper with ScrapingBee
+	reaScraper := scraper.NewREAScraperWithScrapingBee(*scrapingBeeKey)
+
+	// Get REA properties that haven't had details scraped yet
+	properties, err := database.GetREAPropertiesWithoutDetails(*limit)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No REA properties need detail scraping")
+		return
+	}
+
+	log.Printf("Fetching details for %d REA properties...", len(properties))
+
+	success := 0
+	failed := 0
+
+	for i, p := range properties {
+		location := p.Suburb
+		if p.Address != "" {
+			location = p.Address
+		}
+
+		log.Printf("[%d/%d] Fetching details for property %d (%s)...", i+1, len(properties), p.ID, location)
+
+		// Fetch the listing details
+		details, err := reaScraper.FetchListingDetails(ctx, p.URL)
+		if err != nil {
+			log.Printf("[%d/%d] Failed for property %d: %v", i+1, len(properties), p.ID, err)
+			failed++
+			// Still wait before the next request to avoid rate limiting
+			time.Sleep(*delay)
+			continue
+		}
+
+		// Prepare values for update
+		var description, images string
+		var landSizeSqm *float64
+		var bedrooms, bathrooms *int64
+		var priceMin, priceMax *int64
+
+		if details.Description.Valid && details.Description.String != "" {
+			description = details.Description.String
+		}
+		if details.Images.Valid && details.Images.String != "" && details.Images.String != "[]" {
+			images = details.Images.String
+		}
+		if details.LandSizeSqm.Valid && details.LandSizeSqm.Float64 > 0 {
+			landSizeSqm = &details.LandSizeSqm.Float64
+		}
+		if details.Bedrooms.Valid {
+			bedrooms = &details.Bedrooms.Int64
+		}
+		if details.Bathrooms.Valid {
+			bathrooms = &details.Bathrooms.Int64
+		}
+		if details.PriceMin.Valid {
+			priceMin = &details.PriceMin.Int64
+		}
+		if details.PriceMax.Valid {
+			priceMax = &details.PriceMax.Int64
+		}
+
+		// Update the property with the fetched details
+		err = database.UpdatePropertyFromDetails(p.ID, description, images, landSizeSqm, bedrooms, bathrooms, priceMin, priceMax)
+		if err != nil {
+			log.Printf("[%d/%d] Failed to save details for property %d: %v", i+1, len(properties), p.ID, err)
+			failed++
+			time.Sleep(*delay)
+			continue
+		}
+
+		// Log what we found
+		var found []string
+		if description != "" {
+			found = append(found, "description")
+		}
+		if images != "" {
+			found = append(found, "images")
+		}
+		if landSizeSqm != nil {
+			found = append(found, fmt.Sprintf("%.1f ha", *landSizeSqm/10000))
+		}
+		if bedrooms != nil {
+			found = append(found, fmt.Sprintf("%d bed", *bedrooms))
+		}
+		if bathrooms != nil {
+			found = append(found, fmt.Sprintf("%d bath", *bathrooms))
+		}
+
+		if len(found) > 0 {
+			log.Printf("[%d/%d] Property %d: found %v", i+1, len(properties), p.ID, found)
+		} else {
+			log.Printf("[%d/%d] Property %d: no new details found", i+1, len(properties), p.ID)
+		}
+
+		success++
+
+		// Rate limiting
+		time.Sleep(*delay)
+	}
+
+	log.Printf("Done! Success: %d, Failed: %d", success, failed)
 }

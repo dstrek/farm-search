@@ -81,6 +81,10 @@
   - Multiple JSON extraction patterns (ArgonautExchange, Next.js, recursive search)
   - Enhanced HTML parsing fallback
   - Better detail page scraping
+- [x] Add REA details scraper (`go run cmd/tools/main.go readetails -scrapingbee KEY`)
+  - Fetches full listing details (description, images, land size, bedrooms/bathrooms)
+  - Only scrapes properties that haven't been scraped before (tracks `details_scraped_at`)
+  - Uses ScrapingBee to bypass Kasada bot protection
 
 ---
 

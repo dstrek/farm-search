@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS properties (
     listed_at DATETIME,
     scraped_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
+    details_scraped_at DATETIME,  -- When full listing details were successfully fetched
     drive_time_sydney INTEGER,  -- Drive time to Sutherland in minutes (via Valhalla routing)
     nearest_town_1 TEXT,        -- Name of nearest town
     nearest_town_1_km REAL,     -- Distance to nearest town in km

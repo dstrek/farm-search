@@ -81,4 +81,6 @@ func runMigrations(db *sqlx.DB) {
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_1_lng REAL")
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_lat REAL")
 	db.Exec("ALTER TABLE properties ADD COLUMN nearest_school_2_lng REAL")
+	// Add details_scraped_at column to track when full listing details were fetched
+	db.Exec("ALTER TABLE properties ADD COLUMN details_scraped_at DATETIME")
 }
