@@ -13,15 +13,18 @@ import (
 
 // Config holds scraper configuration
 type Config struct {
-	MaxPages      int
-	DelayBetween  time.Duration
-	Workers       int
-	PropertyTypes []string
-	Regions       []string
-	UseBrowser    bool   // Use headless browser to bypass bot protection
-	Headless      bool   // Run browser in headless mode (no visible window)
-	Source        string // Which source to scrape: "rea", "farmproperty", "farmbuy", or "all"
-	SkipGeocode   bool   // Skip geocoding for properties without coordinates
+	MaxPages       int
+	DelayBetween   time.Duration
+	Workers        int
+	PropertyTypes  []string
+	Regions        []string
+	UseBrowser     bool   // Use headless browser to bypass bot protection
+	Headless       bool   // Run browser in headless mode (no visible window)
+	Source         string // Which source to scrape: "rea", "farmproperty", "farmbuy", or "all"
+	SkipGeocode    bool   // Skip geocoding for properties without coordinates
+	CookieFile     string // Path to JSON file containing cookies for REA authentication
+	UserDataDir    string // Path to Chrome user data directory for persistent sessions
+	ScrapingBeeKey string // ScrapingBee API key for bypassing bot protection (used for REA)
 }
 
 // DefaultConfig returns default scraper settings
@@ -61,10 +64,17 @@ func New(database *db.DB, config Config) *Scraper {
 	s := &Scraper{
 		db:           database,
 		config:       config,
-		rea:          NewREAScraper(),
 		farmProperty: NewFarmPropertyScraper(),
 		farmBuy:      NewFarmBuyScraper(),
 		geo:          NewGeocoder(),
+	}
+
+	// Use ScrapingBee for REA if API key is provided
+	if config.ScrapingBeeKey != "" {
+		s.rea = NewREAScraperWithScrapingBee(config.ScrapingBeeKey)
+		log.Println("REA scraper configured to use ScrapingBee")
+	} else {
+		s.rea = NewREAScraper()
 	}
 
 	if config.UseBrowser {
@@ -72,6 +82,23 @@ func New(database *db.DB, config Config) *Scraper {
 	}
 
 	return s
+}
+
+// LoadCookies loads cookies from a file for the browser scraper
+func (s *Scraper) LoadCookies(filepath string) error {
+	if s.browser == nil {
+		return fmt.Errorf("browser scraper not initialized (use -browser flag)")
+	}
+	return s.browser.LoadCookiesFromFile(filepath)
+}
+
+// SetUserDataDir sets the Chrome user data directory for persistent sessions
+func (s *Scraper) SetUserDataDir(dir string) error {
+	if s.browser == nil {
+		return fmt.Errorf("browser scraper not initialized (use -browser flag)")
+	}
+	s.browser.SetUserDataDir(dir)
+	return nil
 }
 
 // Run executes the scraping process
@@ -145,37 +172,51 @@ func (s *Scraper) Run(ctx context.Context) error {
 
 	// Scrape REA if selected
 	if s.config.Source == "rea" || s.config.Source == "all" {
-		for _, propType := range s.config.PropertyTypes {
-			for _, region := range s.config.Regions {
-				log.Printf("Scraping REA %s properties in %s...", propType, region)
+		// Log which method we're using
+		if s.config.ScrapingBeeKey != "" {
+			log.Println("Using ScrapingBee for REA scraping")
+		} else if s.browser != nil {
+			log.Println("Using browser for REA scraping (may be blocked by Kasada)")
+		} else {
+			log.Println("Using direct HTTP for REA scraping (will likely be blocked)")
+		}
 
-				var listings []models.Property
-				var err error
+		// REA uses a single combined URL for all rural property types
+		// so we only need to iterate over regions, not property types
+		for _, region := range s.config.Regions {
+			log.Printf("Scraping REA rural properties in %s...", region)
 
-				// Use browser or HTTP scraper based on config
-				if s.browser != nil {
-					listings, err = s.browser.ScrapeListings(ctx, region, propType, s.config.MaxPages)
-				} else {
-					listings, err = s.rea.ScrapeListings(ctx, region, propType, s.config.MaxPages)
-				}
+			var listings []models.Property
+			var err error
 
-				if err != nil {
-					log.Printf("Error scraping REA %s/%s: %v", region, propType, err)
-					continue
-				}
+			// Priority: ScrapingBee > Browser > Direct HTTP
+			// Note: REA scraper already uses ScrapingBee if configured
+			if s.browser != nil && s.config.ScrapingBeeKey == "" {
+				listings, err = s.browser.ScrapeListings(ctx, region, "rural", s.config.MaxPages)
+			} else {
+				listings, err = s.rea.ScrapeListings(ctx, region, "rural", s.config.MaxPages)
+			}
 
-				mu.Lock()
-				allListings = append(allListings, listings...)
-				mu.Unlock()
+			if err != nil {
+				log.Printf("Error scraping REA %s: %v", region, err)
+				continue
+			}
 
-				log.Printf("Found %d listings from REA for %s/%s", len(listings), region, propType)
+			mu.Lock()
+			allListings = append(allListings, listings...)
+			mu.Unlock()
 
-				// Respect rate limits
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(s.config.DelayBetween):
-				}
+			log.Printf("Found %d listings from REA for %s", len(listings), region)
+
+			// Respect rate limits (longer delay for ScrapingBee to conserve credits)
+			delay := s.config.DelayBetween
+			if s.config.ScrapingBeeKey != "" {
+				delay = 3 * time.Second // Minimum 3s delay for ScrapingBee
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
 			}
 		}
 	}

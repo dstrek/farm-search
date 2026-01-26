@@ -24,7 +24,15 @@ func main() {
 	geocode := flag.Bool("geocode", false, "Enable geocoding for properties without coordinates")
 	useBrowser := flag.Bool("browser", false, "Use headless browser (only needed for REA)")
 	headless := flag.Bool("headless", true, "Run browser in headless mode (set false to see browser)")
+	cookieFile := flag.String("cookies", "", "Path to JSON file with cookies for REA (export from browser)")
+	userDataDir := flag.String("profile", "", "Path to Chrome user data directory (use existing browser session)")
+	scrapingBeeKey := flag.String("scrapingbee", "", "ScrapingBee API key for bypassing bot protection (REA)")
 	flag.Parse()
+
+	// Also check environment variable for ScrapingBee key
+	if *scrapingBeeKey == "" {
+		*scrapingBeeKey = os.Getenv("SCRAPINGBEE_API_KEY")
+	}
 
 	// Determine database path
 	if *dbPath == "" {
@@ -51,9 +59,35 @@ func main() {
 	config.SkipGeocode = !*geocode
 	config.UseBrowser = *useBrowser
 	config.Headless = *headless
+	config.CookieFile = *cookieFile
+	config.ScrapingBeeKey = *scrapingBeeKey
 
 	// Create scraper
 	s := scraper.New(database, config)
+
+	// Load cookies if specified
+	if *cookieFile != "" {
+		if !*useBrowser {
+			log.Println("Warning: -cookies flag requires -browser flag, enabling browser mode")
+			config.UseBrowser = true
+			s = scraper.New(database, config)
+		}
+		if err := s.LoadCookies(*cookieFile); err != nil {
+			log.Fatalf("Failed to load cookies: %v", err)
+		}
+	}
+
+	// Set user data directory if specified (for using existing Chrome profile)
+	if *userDataDir != "" {
+		if !*useBrowser {
+			log.Println("Warning: -profile flag requires -browser flag, enabling browser mode")
+			config.UseBrowser = true
+			s = scraper.New(database, config)
+		}
+		if err := s.SetUserDataDir(*userDataDir); err != nil {
+			log.Fatalf("Failed to set user data directory: %v", err)
+		}
+	}
 
 	// Setup context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())

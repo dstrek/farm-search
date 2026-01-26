@@ -19,8 +19,10 @@ import (
 
 // REAScraper handles scraping from realestate.com.au
 type REAScraper struct {
-	client    *http.Client
-	userAgent string
+	client      *http.Client
+	userAgent   string
+	scrapingBee *ScrapingBeeClient
+	useProxy    bool // Whether to use ScrapingBee proxy
 }
 
 // NewREAScraper creates a new REA scraper
@@ -30,6 +32,18 @@ func NewREAScraper() *REAScraper {
 			Timeout: 30 * time.Second,
 		},
 		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	}
+}
+
+// NewREAScraperWithScrapingBee creates a new REA scraper that uses ScrapingBee
+func NewREAScraperWithScrapingBee(apiKey string) *REAScraper {
+	return &REAScraper{
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		userAgent:   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		scrapingBee: NewScrapingBeeClient(apiKey),
+		useProxy:    true,
 	}
 }
 
@@ -64,39 +78,80 @@ func (s *REAScraper) ScrapeListings(ctx context.Context, region, propertyType st
 }
 
 func (s *REAScraper) scrapePage(ctx context.Context, region, propertyType string, page int) ([]models.Property, bool, error) {
-	// Build the search URL
-	// REA URL pattern: https://www.realestate.com.au/buy/property-rural-in-nsw/list-1
+	// Build the search URL - use map view for ~200 results per page with coordinates
+	// The bounding box covers all of NSW
+	// Format: /map-N with boundingBox parameter: north_lat,west_lng,south_lat,east_lng
+	nswBoundingBox := "-28.157020,140.999279,-37.505280,159.105444" // covers all NSW
 	searchURL := fmt.Sprintf(
-		"https://www.realestate.com.au/buy/property-%s-in-%s/list-%d",
-		propertyType, region, page,
+		"https://www.realestate.com.au/buy/property-house-land-acreage-rural-size-100000-in-%s/map-%d?boundingBox=%s&activeSort=list-date",
+		region, page, url.QueryEscape(nswBoundingBox),
 	)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
-	if err != nil {
-		return nil, false, err
+	var body string
+	var err error
+
+	// Use ScrapingBee if configured, otherwise fall back to direct HTTP
+	if s.useProxy && s.scrapingBee != nil {
+		opts := DefaultREAOptions()
+		body, err = s.scrapingBee.FetchHTML(ctx, searchURL, opts)
+		if err != nil {
+			return nil, false, fmt.Errorf("ScrapingBee fetch failed: %w", err)
+		}
+	} else {
+		// Direct HTTP request (will likely fail due to Kasada)
+		req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+		if err != nil {
+			return nil, false, err
+		}
+
+		req.Header.Set("User-Agent", s.userAgent)
+		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+		req.Header.Set("Accept-Language", "en-AU,en;q=0.9")
+
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return nil, false, err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, false, fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+		}
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, false, err
+		}
+		body = string(bodyBytes)
 	}
 
-	req.Header.Set("User-Agent", s.userAgent)
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-	req.Header.Set("Accept-Language", "en-AU,en;q=0.9")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, false, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, false, fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+	// Check if we got blocked (Kasada challenge page)
+	if len(body) < 2000 && strings.Contains(body, "KPSDK") {
+		return nil, false, fmt.Errorf("blocked by Kasada bot protection")
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, false, err
-	}
+	// Log page size for debugging
+	log.Printf("Received %d bytes from REA for %s page %d", len(body), region, page)
 
 	// Parse the HTML/JSON response
-	listings, hasMore := s.parseListingsPage(string(body), propertyType)
+	listings, hasMore := s.parseListingsPage(body, propertyType)
+
+	// If we got a real page but no listings, log a sample of the content for debugging
+	if len(listings) == 0 && len(body) > 5000 {
+		// Check if we have property links
+		if strings.Contains(body, "/property-") {
+			log.Printf("Page contains property links but parsing found no listings")
+		} else if strings.Contains(body, "No results found") || strings.Contains(body, "no properties") {
+			log.Printf("REA returned 'no results' for this query")
+		} else {
+			// Log first 500 chars for debugging
+			sample := body
+			if len(sample) > 500 {
+				sample = sample[:500]
+			}
+			log.Printf("Unexpected page content (first 500 chars): %s", sample)
+		}
+	}
 
 	return listings, hasMore, nil
 }
@@ -108,30 +163,41 @@ func (s *REAScraper) parseListingsPage(html, propertyType string) ([]models.Prop
 
 	// Look for the JSON data embedded in the page
 	// REA uses a pattern like: window.ArgonautExchange={"..."}
-	jsonPattern := regexp.MustCompile(`window\.ArgonautExchange\s*=\s*(\{.+?\});?\s*</script>`)
+	jsonPattern := regexp.MustCompile(`window\.ArgonautExchange\s*=\s*(\{.+?\});\s*</script>`)
 	matches := jsonPattern.FindStringSubmatch(html)
 
-	if len(matches) < 2 {
-		// Try alternative pattern for different page structures
-		jsonPattern = regexp.MustCompile(`"listingsMap"\s*:\s*(\{[^}]+\})`)
-		matches = jsonPattern.FindStringSubmatch(html)
+	if len(matches) >= 2 {
+		// Parse the outer JSON
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(matches[1]), &data); err != nil {
+			log.Printf("Failed to parse ArgonautExchange JSON: %v", err)
+		} else {
+			// Try map view format first (has coordinates, 200 items per page)
+			listings = s.extractFromMapView(data, propertyType)
+			if len(listings) > 0 {
+				hasMore := strings.Contains(html, `rel="next"`)
+				log.Printf("Extracted %d listings from map view (with coordinates)", len(listings))
+				return listings, hasMore
+			}
+
+			// Try the urqlClientCache structure (list view, 25 items, no coordinates)
+			listings = s.extractFromUrqlCache(data, propertyType)
+			if len(listings) > 0 {
+				hasMore := strings.Contains(html, `rel="next"`)
+				return listings, hasMore
+			}
+
+			// Fall back to old rpiResults structure
+			listings = s.extractListingsFromJSON(data, propertyType)
+			if len(listings) > 0 {
+				hasMore := strings.Contains(html, `rel="next"`)
+				return listings, hasMore
+			}
+		}
 	}
 
 	// If we can't find embedded JSON, try parsing listing cards from HTML
-	if len(matches) < 2 {
-		return s.parseListingCards(html, propertyType), false
-	}
-
-	// Parse the JSON data
-	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(matches[1]), &data); err != nil {
-		log.Printf("Failed to parse JSON: %v", err)
-		return s.parseListingCards(html, propertyType), false
-	}
-
-	// Extract listings from the JSON structure
-	// The structure varies, so we need to handle different formats
-	listings = s.extractListingsFromJSON(data, propertyType)
+	listings = s.parseListingCards(html, propertyType)
 
 	// Check if there are more pages
 	hasMore := strings.Contains(html, `rel="next"`) || strings.Contains(html, "Next page")
@@ -156,7 +222,7 @@ func (s *REAScraper) parseListingCards(html, propertyType string) []models.Prope
 	// Extract listing IDs and basic info using various patterns
 	listingIDPattern := regexp.MustCompile(`/property-[^/]+-[^/]+-(\d+)`)
 	pricePattern := regexp.MustCompile(`<span[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)</span>`)
-	
+
 	// Find all property links
 	linkPattern := regexp.MustCompile(`href="(/property-[^"]+)"`)
 	links := linkPattern.FindAllStringSubmatch(html, -1)
@@ -169,7 +235,7 @@ func (s *REAScraper) parseListingCards(html, propertyType string) []models.Prope
 		}
 
 		path := link[1]
-		
+
 		// Extract listing ID
 		idMatches := listingIDPattern.FindStringSubmatch(path)
 		if len(idMatches) < 2 {
@@ -257,13 +323,416 @@ func (s *REAScraper) parseListingURL(path, listingID, propertyType string) *mode
 	return listing
 }
 
-// extractListingsFromJSON extracts listings from the parsed JSON data
+// extractFromMapView extracts listings from the map view format
+// The structure is: resi-property_map-results-web -> fetchMapSearchData (JSON string) ->
+// data -> buyMapSearch -> results -> items
+// This format includes coordinates (pinGeocode) and returns ~200 items per page
+func (s *REAScraper) extractFromMapView(data map[string]interface{}, propertyType string) []models.Property {
+	var listings []models.Property
+
+	// Navigate to resi-property_map-results-web
+	resi, ok := data["resi-property_map-results-web"].(map[string]interface{})
+	if !ok {
+		return listings
+	}
+
+	// Get fetchMapSearchData (it's a JSON string)
+	mapDataStr, ok := resi["fetchMapSearchData"].(string)
+	if !ok {
+		return listings
+	}
+
+	// Parse the map data JSON
+	var mapData map[string]interface{}
+	if err := json.Unmarshal([]byte(mapDataStr), &mapData); err != nil {
+		log.Printf("Failed to parse fetchMapSearchData: %v", err)
+		return listings
+	}
+
+	// Get the inner data - can be either a string or already parsed map
+	var innerData map[string]interface{}
+	switch d := mapData["data"].(type) {
+	case string:
+		if err := json.Unmarshal([]byte(d), &innerData); err != nil {
+			log.Printf("Failed to parse inner data string: %v", err)
+			return listings
+		}
+	case map[string]interface{}:
+		innerData = d
+	default:
+		return listings
+	}
+
+	// Navigate to buyMapSearch -> results -> items
+	buyMapSearch, ok := innerData["buyMapSearch"].(map[string]interface{})
+	if !ok {
+		return listings
+	}
+
+	results, ok := buyMapSearch["results"].(map[string]interface{})
+	if !ok {
+		return listings
+	}
+
+	items, ok := results["items"].([]interface{})
+	if !ok {
+		return listings
+	}
+
+	// Parse each item
+	for _, item := range items {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		listingData, ok := itemMap["listing"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Get coordinates from pinGeocode
+		var lat, lng float64
+		var hasCoords bool
+		if pinGeocode, ok := itemMap["pinGeocode"].(map[string]interface{}); ok {
+			if latVal, ok := pinGeocode["latitude"].(float64); ok {
+				lat = latVal
+				hasCoords = true
+			}
+			if lngVal, ok := pinGeocode["longitude"].(float64); ok {
+				lng = lngVal
+			}
+		}
+
+		if listing := s.parseMapViewListing(listingData, lat, lng, hasCoords, propertyType); listing != nil {
+			listings = append(listings, *listing)
+		}
+	}
+
+	return listings
+}
+
+// parseMapViewListing parses a listing from the map view format
+func (s *REAScraper) parseMapViewListing(m map[string]interface{}, lat, lng float64, hasCoords bool, propertyType string) *models.Property {
+	now := time.Now()
+	listing := &models.Property{
+		Source:       "rea",
+		State:        "NSW",
+		ScrapedAt:    now,
+		UpdatedAt:    now,
+		PropertyType: sql.NullString{String: propertyType, Valid: true},
+	}
+
+	// Extract ID
+	if id, ok := m["id"].(string); ok {
+		listing.ExternalID = id
+	}
+	if listing.ExternalID == "" {
+		return nil
+	}
+
+	// Set coordinates if available
+	if hasCoords {
+		listing.Latitude = sql.NullFloat64{Float64: lat, Valid: true}
+		listing.Longitude = sql.NullFloat64{Float64: lng, Valid: true}
+	}
+
+	// Extract URL from _links.trackedCanonical
+	if links, ok := m["_links"].(map[string]interface{}); ok {
+		if tracked, ok := links["trackedCanonical"].(map[string]interface{}); ok {
+			if href, ok := tracked["href"].(string); ok {
+				// Remove tracking placeholders
+				href = strings.ReplaceAll(href, "{sourcePage}", "")
+				href = strings.ReplaceAll(href, "{sourceElement}", "")
+				href = strings.TrimSuffix(href, "?sourcePage=&sourceElement=")
+				listing.URL = href
+			}
+		}
+	}
+
+	// Extract address
+	if address, ok := m["address"].(map[string]interface{}); ok {
+		if display, ok := address["display"].(map[string]interface{}); ok {
+			if shortAddr, ok := display["shortAddress"].(string); ok {
+				listing.Address = sql.NullString{String: shortAddr, Valid: true}
+			}
+		}
+		if suburb, ok := address["suburb"].(string); ok {
+			listing.Suburb = sql.NullString{String: suburb, Valid: true}
+		}
+		if postcode, ok := address["postcode"].(string); ok {
+			listing.Postcode = sql.NullString{String: postcode, Valid: true}
+		}
+		if state, ok := address["state"].(string); ok {
+			listing.State = state
+		}
+	}
+
+	// Extract price
+	if price, ok := m["price"].(map[string]interface{}); ok {
+		if display, ok := price["display"].(string); ok {
+			listing.PriceText = sql.NullString{String: display, Valid: true}
+		}
+	}
+
+	// Extract property type from data
+	if propType, ok := m["propertyType"].(map[string]interface{}); ok {
+		if display, ok := propType["display"].(string); ok {
+			listing.PropertyType = sql.NullString{String: display, Valid: true}
+		}
+	}
+
+	// Extract features (bedrooms, bathrooms)
+	if features, ok := m["generalFeatures"].(map[string]interface{}); ok {
+		if beds, ok := features["bedrooms"].(map[string]interface{}); ok {
+			if val, ok := beds["value"].(float64); ok {
+				listing.Bedrooms = sql.NullInt64{Int64: int64(val), Valid: true}
+			}
+		}
+		if baths, ok := features["bathrooms"].(map[string]interface{}); ok {
+			if val, ok := baths["value"].(float64); ok {
+				listing.Bathrooms = sql.NullInt64{Int64: int64(val), Valid: true}
+			}
+		}
+	}
+
+	// Extract main image
+	if media, ok := m["media"].(map[string]interface{}); ok {
+		var images []string
+		if mainImg, ok := media["mainImage"].(map[string]interface{}); ok {
+			if templatedUrl, ok := mainImg["templatedUrl"].(string); ok {
+				imgUrl := strings.ReplaceAll(templatedUrl, "{size}", "800x600")
+				images = append(images, imgUrl)
+			}
+		}
+		if len(images) > 0 {
+			imgJSON, _ := json.Marshal(images)
+			listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+		}
+	}
+
+	return listing
+}
+
+// extractFromUrqlCache extracts listings from the new urqlClientCache structure (2024+)
+// The structure is: resi-property_listing-experience-web -> urqlClientCache (JSON string) ->
+// {cacheKey} -> data (JSON string) -> buySearch -> results -> exact -> items
+func (s *REAScraper) extractFromUrqlCache(data map[string]interface{}, propertyType string) []models.Property {
+	var listings []models.Property
+
+	// Navigate to resi-property_listing-experience-web
+	resi, ok := data["resi-property_listing-experience-web"].(map[string]interface{})
+	if !ok {
+		return listings
+	}
+
+	// Get urqlClientCache (it's a JSON string)
+	cacheStr, ok := resi["urqlClientCache"].(string)
+	if !ok {
+		return listings
+	}
+
+	// Parse the cache JSON
+	var cache map[string]interface{}
+	if err := json.Unmarshal([]byte(cacheStr), &cache); err != nil {
+		log.Printf("Failed to parse urqlClientCache: %v", err)
+		return listings
+	}
+
+	// Iterate through cache entries looking for buySearch data
+	for _, value := range cache {
+		entry, ok := value.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		dataStr, ok := entry["data"].(string)
+		if !ok {
+			continue
+		}
+
+		// Parse the inner data JSON
+		var innerData map[string]interface{}
+		if err := json.Unmarshal([]byte(dataStr), &innerData); err != nil {
+			continue
+		}
+
+		// Look for buySearch results
+		buySearch, ok := innerData["buySearch"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		results, ok := buySearch["results"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Get exact matches
+		exact, ok := results["exact"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		items, ok := exact["items"].([]interface{})
+		if !ok {
+			continue
+		}
+
+		// Parse each listing item
+		for _, item := range items {
+			itemMap, ok := item.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			listingData, ok := itemMap["listing"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			if listing := s.parseUrqlListing(listingData, propertyType); listing != nil {
+				listings = append(listings, *listing)
+			}
+		}
+
+		// Only process first matching cache entry
+		if len(listings) > 0 {
+			break
+		}
+	}
+
+	return listings
+}
+
+// parseUrqlListing parses a listing from the urqlClientCache structure
+func (s *REAScraper) parseUrqlListing(m map[string]interface{}, propertyType string) *models.Property {
+	now := time.Now()
+	listing := &models.Property{
+		Source:       "rea",
+		State:        "NSW",
+		ScrapedAt:    now,
+		UpdatedAt:    now,
+		PropertyType: sql.NullString{String: propertyType, Valid: true},
+	}
+
+	// Extract ID
+	if id, ok := m["id"].(string); ok {
+		listing.ExternalID = id
+	}
+	if listing.ExternalID == "" {
+		return nil
+	}
+
+	// Extract URL from _links.canonical
+	if links, ok := m["_links"].(map[string]interface{}); ok {
+		if canonical, ok := links["canonical"].(map[string]interface{}); ok {
+			if href, ok := canonical["href"].(string); ok {
+				listing.URL = href
+			}
+		}
+	}
+
+	// Extract address
+	if address, ok := m["address"].(map[string]interface{}); ok {
+		if display, ok := address["display"].(map[string]interface{}); ok {
+			if shortAddr, ok := display["shortAddress"].(string); ok {
+				listing.Address = sql.NullString{String: shortAddr, Valid: true}
+			}
+		}
+		if suburb, ok := address["suburb"].(string); ok {
+			listing.Suburb = sql.NullString{String: suburb, Valid: true}
+		}
+		if postcode, ok := address["postcode"].(string); ok {
+			listing.Postcode = sql.NullString{String: postcode, Valid: true}
+		}
+		if state, ok := address["state"].(string); ok {
+			listing.State = state
+		}
+	}
+
+	// Extract price
+	if price, ok := m["price"].(map[string]interface{}); ok {
+		if display, ok := price["display"].(string); ok {
+			listing.PriceText = sql.NullString{String: display, Valid: true}
+		}
+	}
+
+	// Extract description
+	if desc, ok := m["description"].(string); ok {
+		// Clean HTML tags from description
+		desc = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(desc, " ")
+		desc = strings.TrimSpace(desc)
+		if len(desc) > 2000 {
+			desc = desc[:2000]
+		}
+		listing.Description = sql.NullString{String: desc, Valid: true}
+	}
+
+	// Extract features (bedrooms, bathrooms)
+	if features, ok := m["generalFeatures"].(map[string]interface{}); ok {
+		if beds, ok := features["bedrooms"].(map[string]interface{}); ok {
+			if val, ok := beds["value"].(float64); ok {
+				listing.Bedrooms = sql.NullInt64{Int64: int64(val), Valid: true}
+			}
+		}
+		if baths, ok := features["bathrooms"].(map[string]interface{}); ok {
+			if val, ok := baths["value"].(float64); ok {
+				listing.Bathrooms = sql.NullInt64{Int64: int64(val), Valid: true}
+			}
+		}
+	}
+
+	// Extract land size
+	if propertySizes, ok := m["propertySizes"].(map[string]interface{}); ok {
+		if land, ok := propertySizes["land"].(map[string]interface{}); ok {
+			displayValue := ""
+			unit := ""
+			if dv, ok := land["displayValue"].(string); ok {
+				displayValue = dv
+			}
+			if sizeUnit, ok := land["sizeUnit"].(map[string]interface{}); ok {
+				if u, ok := sizeUnit["displayValue"].(string); ok {
+					unit = u
+				}
+			}
+			if displayValue != "" {
+				sizeStr := displayValue + " " + unit
+				listing.LandSizeSqm = sql.NullFloat64{Float64: parseLandSize(sizeStr), Valid: true}
+			}
+		}
+	}
+
+	// Extract images
+	if media, ok := m["media"].(map[string]interface{}); ok {
+		var images []string
+		if imgList, ok := media["images"].([]interface{}); ok {
+			for _, img := range imgList {
+				if imgMap, ok := img.(map[string]interface{}); ok {
+					if templatedUrl, ok := imgMap["templatedUrl"].(string); ok {
+						// Replace {size} with a reasonable size
+						imgUrl := strings.ReplaceAll(templatedUrl, "{size}", "800x600")
+						images = append(images, imgUrl)
+					}
+				}
+			}
+		}
+		if len(images) > 0 {
+			imgJSON, _ := json.Marshal(images)
+			listing.Images = sql.NullString{String: string(imgJSON), Valid: true}
+		}
+	}
+
+	return listing
+}
+
+// extractListingsFromJSON extracts listings from the parsed JSON data (legacy format)
 func (s *REAScraper) extractListingsFromJSON(data map[string]interface{}, propertyType string) []models.Property {
 	var listings []models.Property
 
 	// Navigate the JSON structure to find listings
 	// This varies based on REA's data structure
-	
+
 	// Try common paths
 	if results, ok := data["rpiResults"].(map[string]interface{}); ok {
 		if tieredResults, ok := results["tieredResults"].([]interface{}); ok {

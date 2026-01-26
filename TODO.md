@@ -74,6 +74,13 @@
 - [x] Calculate distances for all scraped properties (Sydney, nearest town, nearest school)
 - [x] Add map marker clustering using MapLibre's native GeoJSON clustering
 - [x] Add loading indicators for API calls (overlay spinner)
+- [x] Improve REA scraper with advanced anti-detection techniques:
+  - Comprehensive stealth mode flags for Chrome
+  - Human-like behavior simulation (scrolling, random delays, mouse movement)
+  - Cookie injection from JSON file (export from browser to bypass Kasada)
+  - Multiple JSON extraction patterns (ArgonautExchange, Next.js, recursive search)
+  - Enhanced HTML parsing fallback
+  - Better detail page scraping
 
 ---
 
@@ -177,10 +184,15 @@
 ## Notes
 
 ### Scraping Observations
-- **REA (realestate.com.au)**: Uses Kasada bot protection, blocks both HTTP requests and headless browsers
-- **FarmProperty.com.au**: No bot protection, works with simple HTTP requests, has JSON-LD structured data with coordinates
-- **FarmBuy.com**: No bot protection, has embedded JSON in listing tiles + coordinates in map markers
-- REA embeds JSON data in `window.ArgonautExchange` on listing pages
+- **REA (realestate.com.au)**: Uses Kasada bot protection, bypassed via ScrapingBee
+  - Direct HTTP requests and headless browsers are blocked by Kasada fingerprinting
+  - **ScrapingBee integration**: Use `-scrapingbee <API_KEY>` or set `SCRAPINGBEE_API_KEY` env var
+  - Uses stealth proxy mode (75 credits/request) for reliable bypass
+  - Map view URL (`/map-N`) returns ~200 listings per page WITH coordinates (no geocoding needed)
+  - List view URL (`/list-N`) returns only 25 listings without coordinates
+- **FarmProperty.com.au**: No bot protection, works with simple HTTP requests, has JSON-LD structured data with coordinates (PRIMARY SOURCE)
+- **FarmBuy.com**: No bot protection, has embedded JSON in listing tiles + coordinates in map markers (SECONDARY SOURCE)
+- REA embeds JSON data in `window.ArgonautExchange` on listing pages (when accessible)
 - Listing URLs contain property type, suburb, postcode, and listing ID
 - Some listings don't have coordinates; need geocoding fallback
 - Rate limiting is essential to avoid IP blocks

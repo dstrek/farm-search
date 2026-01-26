@@ -104,7 +104,29 @@ curl http://localhost:8080/api/filters/options
 - **NSW Spatial Services**: Cadastral lot boundaries via ArcGIS REST API
 - **FarmProperty.com.au**: Primary property listing source (no bot protection)
 - **FarmBuy.com**: Secondary property listing source (implemented, no bot protection)
-- **realestate.com.au**: Requires headless browser (Kasada bot protection)
+- **realestate.com.au**: Uses ScrapingBee to bypass Kasada bot protection
+- **ScrapingBee**: Web scraping API for bypassing bot protection (requires API key)
+
+## Scraper Usage
+
+```bash
+# FarmProperty (primary, no bot protection)
+go run cmd/scraper/main.go -source farmproperty -pages 10
+
+# FarmBuy (secondary, no bot protection)
+go run cmd/scraper/main.go -source farmbuy -pages 10
+
+# REA (uses ScrapingBee to bypass Kasada)
+go run cmd/scraper/main.go -source rea -scrapingbee $SCRAPINGBEE_API_KEY -pages 5 -geocode
+
+# All working sources (recommended)
+go run cmd/scraper/main.go -source farmproperty -pages 10 && \
+go run cmd/scraper/main.go -source farmbuy -pages 10 -geocode
+```
+
+**Note on REA:** realestate.com.au uses Kasada bot protection which blocks direct HTTP requests and headless browsers. The scraper uses ScrapingBee's stealth proxy mode to bypass this protection. You need a ScrapingBee API key (pass via `-scrapingbee` flag or `SCRAPINGBEE_API_KEY` env var). Each page costs ~75 credits. REA listings don't include coordinates, so `-geocode` flag is recommended.
+
+The scraper uses the map view URL (`/map-N`) which returns ~200 listings per page with coordinates included (no geocoding needed). This is more efficient than the list view which only returns 25 listings per page without coordinates.
 
 ## Isochrone Generation
 
