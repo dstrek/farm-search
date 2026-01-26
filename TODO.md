@@ -190,6 +190,7 @@
   - Uses stealth proxy mode (75 credits/request) for reliable bypass
   - Map view URL (`/map-N`) returns ~200 listings per page WITH coordinates (no geocoding needed)
   - List view URL (`/list-N`) returns only 25 listings without coordinates
+  - **Early pagination stop**: Stops scraping when a page has no new properties (saves credits since results are sorted newest-first)
 - **FarmProperty.com.au**: No bot protection, works with simple HTTP requests, has JSON-LD structured data with coordinates (PRIMARY SOURCE)
 - **FarmBuy.com**: No bot protection, has embedded JSON in listing tiles + coordinates in map markers (SECONDARY SOURCE)
 - REA embeds JSON data in `window.ArgonautExchange` on listing pages (when accessible)

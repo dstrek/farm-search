@@ -181,6 +181,11 @@ func (s *Scraper) Run(ctx context.Context) error {
 			log.Println("Using direct HTTP for REA scraping (will likely be blocked)")
 		}
 
+		// Create exists checker to stop pagination when we hit already-scraped properties
+		existsChecker := func(externalIDs []string) (map[string]bool, error) {
+			return s.db.PropertiesExist(externalIDs, "rea")
+		}
+
 		// REA uses a single combined URL for all rural property types
 		// so we only need to iterate over regions, not property types
 		for _, region := range s.config.Regions {
@@ -194,7 +199,7 @@ func (s *Scraper) Run(ctx context.Context) error {
 			if s.browser != nil && s.config.ScrapingBeeKey == "" {
 				listings, err = s.browser.ScrapeListings(ctx, region, "rural", s.config.MaxPages)
 			} else {
-				listings, err = s.rea.ScrapeListings(ctx, region, "rural", s.config.MaxPages)
+				listings, err = s.rea.ScrapeListingsWithExistsCheck(ctx, region, "rural", s.config.MaxPages, existsChecker)
 			}
 
 			if err != nil {

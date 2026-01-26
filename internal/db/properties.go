@@ -568,6 +568,51 @@ func (db *DB) GetCadastralLotCount() (int, error) {
 	return count, err
 }
 
+// PropertyExists checks if a property with the given external_id and source already exists
+func (db *DB) PropertyExists(externalID, source string) (bool, error) {
+	var count int
+	err := db.Get(&count, "SELECT COUNT(*) FROM properties WHERE external_id = ? AND source = ?", externalID, source)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// PropertiesExist checks if properties with the given external_ids and source already exist
+// Returns a map of external_id -> exists
+func (db *DB) PropertiesExist(externalIDs []string, source string) (map[string]bool, error) {
+	if len(externalIDs) == 0 {
+		return make(map[string]bool), nil
+	}
+
+	// Build query with placeholders
+	placeholders := make([]string, len(externalIDs))
+	args := make([]interface{}, len(externalIDs)+1)
+	args[0] = source
+	for i, id := range externalIDs {
+		placeholders[i] = "?"
+		args[i+1] = id
+	}
+
+	query := fmt.Sprintf(
+		"SELECT external_id FROM properties WHERE source = ? AND external_id IN (%s)",
+		strings.Join(placeholders, ","),
+	)
+
+	var existingIDs []string
+	err := db.Select(&existingIDs, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build result map
+	result := make(map[string]bool)
+	for _, id := range existingIDs {
+		result[id] = true
+	}
+	return result, nil
+}
+
 // GetBoundariesInBounds returns cadastral lot boundaries for properties matching the filter
 // Returns a list of lots with their geometry (GeoJSON) and associated property IDs
 // Applies the same filters as ListProperties to ensure boundaries match visible properties

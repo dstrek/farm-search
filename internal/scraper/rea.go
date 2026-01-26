@@ -47,8 +47,19 @@ func NewREAScraperWithScrapingBee(apiKey string) *REAScraper {
 	}
 }
 
+// ExistsChecker is a function that checks if properties already exist in the database
+// It takes a slice of external IDs and returns a map of ID -> exists
+type ExistsChecker func(externalIDs []string) (map[string]bool, error)
+
 // ScrapeListings scrapes property listings from REA
 func (s *REAScraper) ScrapeListings(ctx context.Context, region, propertyType string, maxPages int) ([]models.Property, error) {
+	return s.ScrapeListingsWithExistsCheck(ctx, region, propertyType, maxPages, nil)
+}
+
+// ScrapeListingsWithExistsCheck scrapes property listings from REA with an optional check
+// for existing properties. If existsChecker is provided and a page contains no new properties,
+// scraping stops early (since results are sorted by newest first).
+func (s *REAScraper) ScrapeListingsWithExistsCheck(ctx context.Context, region, propertyType string, maxPages int, existsChecker ExistsChecker) ([]models.Property, error) {
 	var allListings []models.Property
 
 	for page := 1; page <= maxPages; page++ {
@@ -62,6 +73,36 @@ func (s *REAScraper) ScrapeListings(ctx context.Context, region, propertyType st
 		if err != nil {
 			log.Printf("Error scraping page %d: %v", page, err)
 			break
+		}
+
+		// If we have an exists checker, check if any properties on this page are new
+		if existsChecker != nil && len(listings) > 0 {
+			externalIDs := make([]string, len(listings))
+			for i, l := range listings {
+				externalIDs[i] = l.ExternalID
+			}
+
+			existsMap, err := existsChecker(externalIDs)
+			if err != nil {
+				log.Printf("Warning: failed to check existing properties: %v", err)
+			} else {
+				// Count how many are new
+				newCount := 0
+				for _, l := range listings {
+					if !existsMap[l.ExternalID] {
+						newCount++
+					}
+				}
+
+				log.Printf("Page %d: %d listings, %d new, %d already scraped", page, len(listings), newCount, len(listings)-newCount)
+
+				// If no new properties on this page, stop pagination
+				// (since results are sorted by newest first, older pages won't have new ones either)
+				if newCount == 0 {
+					log.Printf("No new properties found on page %d, stopping pagination (all %d already scraped)", page, len(listings))
+					break
+				}
+			}
 		}
 
 		allListings = append(allListings, listings...)
