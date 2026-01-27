@@ -1,4 +1,4 @@
-.PHONY: run build scrape migrate clean help seed isochrones distances drivetimes towns towndrivetimes schools schooldrivetimes cadastral deploy setup-server
+.PHONY: run build scrape migrate clean help seed isochrones distances drivetimes towns towndrivetimes schools schooldrivetimes cadastral readetails deploy setup-server
 
 # Default target
 help:
@@ -17,6 +17,7 @@ help:
 	@echo "  make schools       - Calculate nearest primary schools for properties"
 	@echo "  make schooldrivetimes - Calculate drive times to nearest schools"
 	@echo "  make cadastral     - Fetch cadastral lot boundaries"
+	@echo "  make readetails    - Fetch full listing details for REA properties"
 	@echo "  make migrate       - Initialize/migrate the database"
 	@echo "  make clean         - Remove build artifacts"
 	@echo "  make deps          - Download Go dependencies"
@@ -77,6 +78,10 @@ schooldrivetimes:
 # Fetch cadastral lot boundaries
 cadastral:
 	go run ./cmd/tools cadastral
+
+# Fetch full listing details for REA properties
+readetails:
+	go run ./cmd/tools readetails -scrapingbee F2O2MGXMWTJBI2G53CR06M0OCJRR7JD5A5WL21IE4ZTMQ3CTNAEB4E1EGRD0WP6TYTAYJQRHRHOCAAX8
 
 # Initialize database (creates tables via seed which calls db.New)
 migrate: seed

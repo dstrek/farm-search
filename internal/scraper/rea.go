@@ -17,12 +17,13 @@ import (
 	"farm-search/internal/models"
 )
 
+// ProxyProvider indicates which proxy service to use
 // REAScraper handles scraping from realestate.com.au
 type REAScraper struct {
 	client      *http.Client
 	userAgent   string
 	scrapingBee *ScrapingBeeClient
-	useProxy    bool // Whether to use ScrapingBee proxy
+	useProxy    bool
 }
 
 // NewREAScraper creates a new REA scraper
