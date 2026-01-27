@@ -141,7 +141,11 @@
   - Clickable items highlight when active (blue for towns, sky blue for schools)
 
 ### Medium Priority
-- [ ] Add Domain.com.au scraper (may have bot protection)
+- [x] Add Domain.com.au scraper (web scraping)
+  - Traditional HTML scraping (no API key required)
+  - Extracts listings from __NEXT_DATA__ JSON in Next.js pages
+  - Includes coordinates, price, land size, images
+  - Use `-source domain-web` to scrape, or `-domain-web-url` to specify custom URL
 - [ ] Implement scheduled daily scraping (cron)
 - [ ] Improve mobile responsive layout
 

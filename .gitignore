@@ -23,3 +23,6 @@ coverage.html
 
 # Environment (contains secrets)
 .env
+
+# Cookie files (contain session data)
+cookies.json

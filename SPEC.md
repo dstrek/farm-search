@@ -435,8 +435,9 @@ Routes to towns and schools are shown on demand by clicking:
 |--------|-----|--------|
 | FarmProperty | farmproperty.com.au | Implemented (primary, no bot protection) |
 | FarmBuy | farmbuy.com | Implemented (no bot protection) |
-| realestate.com.au | realestate.com.au/buy/property-rural-in-nsw | Implemented (requires headless browser) |
-| Domain | domain.com.au | Future |
+| realestate.com.au | realestate.com.au/buy/property-rural-in-nsw | Implemented but blocked by Kasada (see notes) |
+| Domain (API) | domain.com.au | Implemented (requires API key) |
+| Domain (Web) | domain.com.au | Implemented (no API key, traditional scraping) |
 
 **Scraping Approach:**
 1. Search listing pages by property type and region
@@ -446,9 +447,30 @@ Routes to towns and schools are shown on demand by clicking:
 5. Skip properties without valid coordinates (they can't be displayed on map)
 6. Store in SQLite with upsert logic
 
+**REA Browser Scraper Features:**
+- Stealth mode: Comprehensive anti-detection flags and JavaScript patches
+- Human-like behavior: Random delays (3-6 seconds), scrolling, simulated mouse movement
+- Multiple JSON extraction patterns: ArgonautExchange, Next.js __NEXT_DATA__, recursive search
+- Challenge handling: Detects Kasada challenges and waits for resolution
+- Fallback parsing: HTML card extraction when JSON is unavailable
+- Cookie injection support (see note below)
+
+**REA Kasada Protection:**
+REA uses Kasada bot protection which fingerprints the browser and blocks automated access:
+- Kasada detects headless Chrome even with stealth techniques
+- Session cookies are tied to browser fingerprints and cannot be transferred
+- The challenge JavaScript never resolves in headless environments
+
+**Workarounds for REA:**
+1. Use FarmProperty.com.au and FarmBuy.com instead (recommended - no bot protection)
+2. Use a remote browser service (Browserless.io, etc.) with real browser instances
+3. Copy HTML manually from browser DevTools and process with the parsing functions
+
 **Rate Limiting:**
-- 2 second delay between page requests
+- 3-6 second random delay between REA pages (to appear human)
+- 2 second delay between other page requests
 - 1 second delay between geocoding requests
+- 30 second retry wait if bot protection detected
 - Respect robots.txt
 
 ### Isochrones

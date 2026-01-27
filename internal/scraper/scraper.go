@@ -20,12 +20,14 @@ type Config struct {
 	Regions        []string
 	UseBrowser     bool   // Use headless browser to bypass bot protection
 	Headless       bool   // Run browser in headless mode (no visible window)
-	Source         string // Which source to scrape: "rea", "farmproperty", "farmbuy", "domain", or "all"
+	Source         string // Which source to scrape: "rea", "farmproperty", "farmbuy", "domain", "domain-web", or "all"
 	SkipGeocode    bool   // Skip geocoding for properties without coordinates
 	CookieFile     string // Path to JSON file containing cookies for REA authentication
 	UserDataDir    string // Path to Chrome user data directory for persistent sessions
 	ScrapingBeeKey string // ScrapingBee API key for bypassing bot protection (used for REA)
 	DomainAPIKey   string // Domain.com.au API key for their official API
+	DomainWebURL   string // Custom URL for domain-web scraper (overrides default)
+	FullRefresh    bool   // Continue scraping all pages even if properties already exist
 }
 
 // DefaultConfig returns default scraper settings
@@ -58,6 +60,7 @@ type Scraper struct {
 	farmProperty *FarmPropertyScraper
 	farmBuy      *FarmBuyScraper
 	domain       *DomainScraper
+	domainWeb    *DomainWebScraper
 	geo          *Geocoder
 }
 
@@ -68,6 +71,7 @@ func New(database *db.DB, config Config) *Scraper {
 		config:       config,
 		farmProperty: NewFarmPropertyScraper(),
 		farmBuy:      NewFarmBuyScraper(),
+		domainWeb:    NewDomainWebScraper(),
 		geo:          NewGeocoder(),
 	}
 
@@ -79,10 +83,10 @@ func New(database *db.DB, config Config) *Scraper {
 		s.rea = NewREAScraper()
 	}
 
-	// Initialize Domain scraper if API key is provided
+	// Initialize Domain API scraper if API key is provided
 	if config.DomainAPIKey != "" {
 		s.domain = NewDomainScraper(config.DomainAPIKey)
-		log.Println("Domain scraper configured with API key")
+		log.Println("Domain API scraper configured with API key")
 	}
 
 	if config.UseBrowser {
@@ -190,8 +194,12 @@ func (s *Scraper) Run(ctx context.Context) error {
 		}
 
 		// Create exists checker to stop pagination when we hit already-scraped properties
-		existsChecker := func(externalIDs []string) (map[string]bool, error) {
-			return s.db.PropertiesExist(externalIDs, "rea")
+		// Pass nil if full refresh is enabled to scrape all pages
+		var existsChecker ExistsChecker
+		if !s.config.FullRefresh {
+			existsChecker = func(externalIDs []string) (map[string]bool, error) {
+				return s.db.PropertiesExist(externalIDs, "rea")
+			}
 		}
 
 		// REA uses a single combined URL for all rural property types
@@ -237,8 +245,12 @@ func (s *Scraper) Run(ctx context.Context) error {
 	// Scrape Domain if selected and API key is configured
 	if (s.config.Source == "domain" || s.config.Source == "all") && s.domain != nil {
 		// Create exists checker to stop pagination when we hit already-scraped properties
-		existsChecker := func(externalIDs []string) (map[string]bool, error) {
-			return s.db.PropertiesExist(externalIDs, "domain")
+		// Pass nil if full refresh is enabled to scrape all pages
+		var existsChecker ExistsChecker
+		if !s.config.FullRefresh {
+			existsChecker = func(externalIDs []string) (map[string]bool, error) {
+				return s.db.PropertiesExist(externalIDs, "domain")
+			}
 		}
 
 		for _, region := range s.config.Regions {
@@ -265,6 +277,39 @@ func (s *Scraper) Run(ctx context.Context) error {
 		}
 	} else if s.config.Source == "domain" && s.domain == nil {
 		log.Println("Warning: Domain source selected but no API key provided (use -domain-api-key flag)")
+	}
+
+	// Scrape Domain via web scraping if selected
+	if s.config.Source == "domain-web" || s.config.Source == "all" {
+		log.Println("Scraping Domain (web)...")
+
+		// Create exists checker to stop pagination when we hit already-scraped properties
+		// Pass nil if full refresh is enabled to scrape all pages
+		var existsChecker ExistsChecker
+		if !s.config.FullRefresh {
+			existsChecker = func(externalIDs []string) (map[string]bool, error) {
+				return s.db.PropertiesExist(externalIDs, "domain-web")
+			}
+		} else {
+			log.Println("Full refresh enabled - will scrape all pages")
+		}
+
+		// Use custom URL if provided, otherwise use default
+		config := DefaultDomainWebConfig()
+		if s.config.DomainWebURL != "" {
+			config.StartURL = s.config.DomainWebURL
+		}
+
+		listings, err := s.domainWeb.ScrapeListingsWithExistsCheck(ctx, s.config.MaxPages, config, existsChecker)
+		if err != nil {
+			log.Printf("Error scraping Domain (web): %v", err)
+		} else {
+			mu.Lock()
+			allListings = append(allListings, listings...)
+			mu.Unlock()
+
+			log.Printf("Found %d listings from Domain (web)", len(listings))
+		}
 	}
 
 	_ = startTime // Used later

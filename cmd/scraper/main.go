@@ -20,7 +20,7 @@ func main() {
 	maxPages := flag.Int("pages", 5, "Maximum pages to scrape per property type")
 	workers := flag.Int("workers", 3, "Number of concurrent workers")
 	delay := flag.Duration("delay", 2*time.Second, "Delay between requests")
-	source := flag.String("source", "farmproperty", "Source to scrape: farmproperty, farmbuy, rea, domain, or all")
+	source := flag.String("source", "farmproperty", "Source to scrape: farmproperty, farmbuy, rea, domain, domain-web, or all")
 	geocode := flag.Bool("geocode", false, "Enable geocoding for properties without coordinates")
 	useBrowser := flag.Bool("browser", false, "Use headless browser (only needed for REA)")
 	headless := flag.Bool("headless", true, "Run browser in headless mode (set false to see browser)")
@@ -28,6 +28,8 @@ func main() {
 	userDataDir := flag.String("profile", "", "Path to Chrome user data directory (use existing browser session)")
 	scrapingBeeKey := flag.String("scrapingbee", "", "ScrapingBee API key for bypassing bot protection (REA)")
 	domainAPIKey := flag.String("domain-api-key", "", "Domain.com.au API key for their official API")
+	domainWebURL := flag.String("domain-web-url", "", "Custom URL for domain-web scraper (with all filters applied)")
+	fullRefresh := flag.Bool("full-refresh", false, "Continue scraping all pages even if properties already exist (full refresh)")
 	flag.Parse()
 
 	// Also check environment variables for API keys
@@ -66,6 +68,8 @@ func main() {
 	config.CookieFile = *cookieFile
 	config.ScrapingBeeKey = *scrapingBeeKey
 	config.DomainAPIKey = *domainAPIKey
+	config.DomainWebURL = *domainWebURL
+	config.FullRefresh = *fullRefresh
 
 	// Create scraper
 	s := scraper.New(database, config)

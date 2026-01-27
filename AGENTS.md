@@ -109,7 +109,8 @@ curl http://localhost:8080/api/filters/options
 - **FarmProperty.com.au**: Primary property listing source (no bot protection)
 - **FarmBuy.com**: Secondary property listing source (implemented, no bot protection)
 - **realestate.com.au**: Uses ScrapingBee to bypass Kasada bot protection
-- **Domain.com.au**: Uses official API (requires API key from developer.domain.com.au)
+- **Domain.com.au (API)**: Uses official API (requires API key from developer.domain.com.au)
+- **Domain.com.au (Web)**: Traditional web scraping (no API key required, extracts __NEXT_DATA__)
 - **ScrapingBee**: Web scraping API for bypassing bot protection (requires API key)
 
 ## Scraper Usage
@@ -124,8 +125,14 @@ go run cmd/scraper/main.go -source farmbuy -pages 10
 # REA (uses ScrapingBee to bypass Kasada)
 go run cmd/scraper/main.go -source rea -scrapingbee $SCRAPINGBEE_API_KEY -pages 5 -geocode
 
-# Domain (uses official API - recommended, includes coordinates)
+# Domain API (uses official API - recommended, includes coordinates)
 go run cmd/scraper/main.go -source domain -domain-api-key $DOMAIN_API_KEY -pages 10
+
+# Domain Web (no API key required, traditional web scraping)
+go run cmd/scraper/main.go -source domain-web -pages 10
+
+# Domain Web with custom URL (apply your own filters on domain.com.au and copy the URL)
+go run cmd/scraper/main.go -source domain-web -pages 10 -domain-web-url "https://www.domain.com.au/sale/sydney-nsw/?ptype=vacant-land&price=0-2000000"
 
 # All working sources (recommended)
 go run cmd/scraper/main.go -source farmproperty -pages 10 && \
@@ -136,7 +143,9 @@ go run cmd/scraper/main.go -source farmbuy -pages 10 -geocode
 
 The scraper uses the map view URL (`/map-N`) which returns ~200 listings per page with coordinates included (no geocoding needed). This is more efficient than the list view which only returns 25 listings per page without coordinates.
 
-**Note on Domain:** Domain.com.au provides an official API at developer.domain.com.au. Sign up for a free account to get an API key. The API returns up to 100 listings per page with coordinates, property details, and images. Pass the API key via `-domain-api-key` flag or `DOMAIN_API_KEY` env var. The free tier has rate limits but is sufficient for periodic scraping. Results are limited to 1000 total per search, but the scraper uses filters (rural properties, 4+ hectares, under $2M) to target relevant listings.
+**Note on Domain API:** Domain.com.au provides an official API at developer.domain.com.au. Sign up for a free account to get an API key. The API returns up to 100 listings per page with coordinates, property details, and images. Pass the API key via `-domain-api-key` flag or `DOMAIN_API_KEY` env var. The free tier has rate limits but is sufficient for periodic scraping. Results are limited to 1000 total per search, but the scraper uses filters (rural properties, 4+ hectares, under $2M) to target relevant listings.
+
+**Note on Domain Web:** Alternative to the Domain API that doesn't require an API key. It scrapes the domain.com.au website directly by extracting the `__NEXT_DATA__` JSON from Next.js server-rendered pages. This includes coordinates, price, land size, and images. Use `-domain-web-url` to provide a custom search URL with your own filters (navigate to domain.com.au, apply filters, and copy the URL). The default URL targets properties in the Illawarra & South Coast, Southern Highlands, Hunter Valley, and Central Coast regions with land size 10+ hectares and price under $2M.
 
 ## Isochrone Generation
 
