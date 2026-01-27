@@ -42,7 +42,7 @@ farm-search/
 │   ├── db/              # Database connection, queries, schema
 │   ├── geo/             # Geographic calculations, isochrones, schools data
 │   ├── models/          # Domain types
-│   └── scraper/         # Property scrapers (FarmProperty, FarmBuy, REA), geocoder, browser
+│   └── scraper/         # Property scrapers (FarmProperty, FarmBuy, REA, Domain), geocoder, browser
 ├── web/
 │   ├── static/          # CSS, JS, and data files
 │   └── templates/       # HTML templates
@@ -109,6 +109,7 @@ curl http://localhost:8080/api/filters/options
 - **FarmProperty.com.au**: Primary property listing source (no bot protection)
 - **FarmBuy.com**: Secondary property listing source (implemented, no bot protection)
 - **realestate.com.au**: Uses ScrapingBee to bypass Kasada bot protection
+- **Domain.com.au**: Uses official API (requires API key from developer.domain.com.au)
 - **ScrapingBee**: Web scraping API for bypassing bot protection (requires API key)
 
 ## Scraper Usage
@@ -123,6 +124,9 @@ go run cmd/scraper/main.go -source farmbuy -pages 10
 # REA (uses ScrapingBee to bypass Kasada)
 go run cmd/scraper/main.go -source rea -scrapingbee $SCRAPINGBEE_API_KEY -pages 5 -geocode
 
+# Domain (uses official API - recommended, includes coordinates)
+go run cmd/scraper/main.go -source domain -domain-api-key $DOMAIN_API_KEY -pages 10
+
 # All working sources (recommended)
 go run cmd/scraper/main.go -source farmproperty -pages 10 && \
 go run cmd/scraper/main.go -source farmbuy -pages 10 -geocode
@@ -131,6 +135,8 @@ go run cmd/scraper/main.go -source farmbuy -pages 10 -geocode
 **Note on REA:** realestate.com.au uses Kasada bot protection which blocks direct HTTP requests and headless browsers. The scraper uses ScrapingBee's stealth proxy mode to bypass this protection. You need a ScrapingBee API key (pass via `-scrapingbee` flag or `SCRAPINGBEE_API_KEY` env var). Each page costs ~75 credits. REA listings don't include coordinates, so `-geocode` flag is recommended.
 
 The scraper uses the map view URL (`/map-N`) which returns ~200 listings per page with coordinates included (no geocoding needed). This is more efficient than the list view which only returns 25 listings per page without coordinates.
+
+**Note on Domain:** Domain.com.au provides an official API at developer.domain.com.au. Sign up for a free account to get an API key. The API returns up to 100 listings per page with coordinates, property details, and images. Pass the API key via `-domain-api-key` flag or `DOMAIN_API_KEY` env var. The free tier has rate limits but is sufficient for periodic scraping. Results are limited to 1000 total per search, but the scraper uses filters (rural properties, 4+ hectares, under $2M) to target relevant listings.
 
 ## Isochrone Generation
 

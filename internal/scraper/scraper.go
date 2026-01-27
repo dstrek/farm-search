@@ -20,11 +20,12 @@ type Config struct {
 	Regions        []string
 	UseBrowser     bool   // Use headless browser to bypass bot protection
 	Headless       bool   // Run browser in headless mode (no visible window)
-	Source         string // Which source to scrape: "rea", "farmproperty", "farmbuy", or "all"
+	Source         string // Which source to scrape: "rea", "farmproperty", "farmbuy", "domain", or "all"
 	SkipGeocode    bool   // Skip geocoding for properties without coordinates
 	CookieFile     string // Path to JSON file containing cookies for REA authentication
 	UserDataDir    string // Path to Chrome user data directory for persistent sessions
 	ScrapingBeeKey string // ScrapingBee API key for bypassing bot protection (used for REA)
+	DomainAPIKey   string // Domain.com.au API key for their official API
 }
 
 // DefaultConfig returns default scraper settings
@@ -56,6 +57,7 @@ type Scraper struct {
 	browser      *BrowserScraper
 	farmProperty *FarmPropertyScraper
 	farmBuy      *FarmBuyScraper
+	domain       *DomainScraper
 	geo          *Geocoder
 }
 
@@ -75,6 +77,12 @@ func New(database *db.DB, config Config) *Scraper {
 		log.Println("REA scraper configured to use ScrapingBee")
 	} else {
 		s.rea = NewREAScraper()
+	}
+
+	// Initialize Domain scraper if API key is provided
+	if config.DomainAPIKey != "" {
+		s.domain = NewDomainScraper(config.DomainAPIKey)
+		log.Println("Domain scraper configured with API key")
 	}
 
 	if config.UseBrowser {
@@ -224,6 +232,39 @@ func (s *Scraper) Run(ctx context.Context) error {
 			case <-time.After(delay):
 			}
 		}
+	}
+
+	// Scrape Domain if selected and API key is configured
+	if (s.config.Source == "domain" || s.config.Source == "all") && s.domain != nil {
+		// Create exists checker to stop pagination when we hit already-scraped properties
+		existsChecker := func(externalIDs []string) (map[string]bool, error) {
+			return s.db.PropertiesExist(externalIDs, "domain")
+		}
+
+		for _, region := range s.config.Regions {
+			log.Printf("Fetching Domain API listings for %s...", region)
+
+			listings, err := s.domain.ScrapeListingsWithExistsCheck(ctx, region, s.config.MaxPages, existsChecker)
+			if err != nil {
+				log.Printf("Error fetching Domain %s: %v", region, err)
+				continue
+			}
+
+			mu.Lock()
+			allListings = append(allListings, listings...)
+			mu.Unlock()
+
+			log.Printf("Found %d listings from Domain for %s", len(listings), region)
+
+			// Respect rate limits
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(s.config.DelayBetween):
+			}
+		}
+	} else if s.config.Source == "domain" && s.domain == nil {
+		log.Println("Warning: Domain source selected but no API key provided (use -domain-api-key flag)")
 	}
 
 	_ = startTime // Used later
