@@ -63,7 +63,7 @@ func (s *REAScraper) ScrapeListings(ctx context.Context, region, propertyType st
 func (s *REAScraper) ScrapeListingsWithExistsCheck(ctx context.Context, region, propertyType string, maxPages int, existsChecker ExistsChecker) ([]models.Property, error) {
 	var allListings []models.Property
 
-	for page := 1; page <= maxPages; page++ {
+	for page := 1; maxPages <= 0 || page <= maxPages; page++ {
 		select {
 		case <-ctx.Done():
 			return allListings, ctx.Err()
@@ -1205,8 +1205,19 @@ func (s *REAScraper) searchArgonautForDetails(data interface{}, listing *models.
 			// Extract land size
 			if propertySizes, ok := v["propertySizes"].(map[string]interface{}); ok {
 				if land, ok := propertySizes["land"].(map[string]interface{}); ok {
-					if displayVal, ok := land["displayValue"].(string); ok {
-						if sqm := parseLandSize(displayVal); sqm > 0 && !listing.LandSizeSqm.Valid {
+					displayValue := ""
+					unit := ""
+					if dv, ok := land["displayValue"].(string); ok {
+						displayValue = dv
+					}
+					if sizeUnit, ok := land["sizeUnit"].(map[string]interface{}); ok {
+						if u, ok := sizeUnit["displayValue"].(string); ok {
+							unit = u
+						}
+					}
+					if displayValue != "" && !listing.LandSizeSqm.Valid {
+						sizeStr := displayValue + " " + unit
+						if sqm := parseLandSize(sizeStr); sqm > 0 {
 							listing.LandSizeSqm = sql.NullFloat64{Float64: sqm, Valid: true}
 						}
 					}

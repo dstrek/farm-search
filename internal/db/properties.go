@@ -753,3 +753,50 @@ func (db *DB) UpdatePropertyFromDetails(id int64, description, images string, la
 	`, description, images, landSizeSqm, bedrooms, bathrooms, priceMin, priceMax, id)
 	return err
 }
+
+// UpdatePropertyLandSize updates the land size for a property
+func (db *DB) UpdatePropertyLandSize(id int64, landSizeSqm float64) error {
+	_, err := db.Exec(`
+		UPDATE properties SET
+			land_size_sqm = ?,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = ?
+	`, landSizeSqm, id)
+	return err
+}
+
+// GetPropertiesWithSmallLandSize returns properties with cadastral lots where land_size_sqm is NULL or < threshold
+func (db *DB) GetPropertiesWithSmallLandSize(thresholdSqm float64) ([]struct {
+	ID          int64   `db:"id"`
+	Address     string  `db:"address"`
+	Suburb      string  `db:"suburb"`
+	LandSizeSqm float64 `db:"land_size_sqm"`
+}, error) {
+	query := `
+		SELECT DISTINCT p.id, COALESCE(p.address, '') as address, COALESCE(p.suburb, '') as suburb, 
+		       COALESCE(p.land_size_sqm, 0) as land_size_sqm
+		FROM properties p
+		INNER JOIN property_lots pl ON p.id = pl.property_id
+		WHERE p.land_size_sqm IS NULL OR p.land_size_sqm < ?
+	`
+	var properties []struct {
+		ID          int64   `db:"id"`
+		Address     string  `db:"address"`
+		Suburb      string  `db:"suburb"`
+		LandSizeSqm float64 `db:"land_size_sqm"`
+	}
+	err := db.Select(&properties, query, thresholdSqm)
+	return properties, err
+}
+
+// GetTotalCadastralAreaForProperty returns the sum of cadastral lot areas for a property
+func (db *DB) GetTotalCadastralAreaForProperty(propertyID int64) (float64, error) {
+	var totalArea float64
+	err := db.Get(&totalArea, `
+		SELECT COALESCE(SUM(cl.area_sqm), 0)
+		FROM cadastral_lots cl
+		INNER JOIN property_lots pl ON cl.id = pl.lot_id
+		WHERE pl.property_id = ?
+	`, propertyID)
+	return totalArea, err
+}

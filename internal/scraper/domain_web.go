@@ -66,7 +66,7 @@ func (s *DomainWebScraper) ScrapeListingsWithConfig(ctx context.Context, maxPage
 func (s *DomainWebScraper) ScrapeListingsWithExistsCheck(ctx context.Context, maxPages int, config DomainWebConfig, existsChecker ExistsChecker) ([]models.Property, error) {
 	var allListings []models.Property
 
-	for page := 1; page <= maxPages; page++ {
+	for page := 1; maxPages <= 0 || page <= maxPages; page++ {
 		select {
 		case <-ctx.Done():
 			return allListings, ctx.Err()

@@ -1,4 +1,4 @@
-.PHONY: run build scrape migrate clean help seed isochrones distances drivetimes towns towndrivetimes schools schooldrivetimes cadastral readetails deploy setup-server
+.PHONY: run build scrape scrape-all calc-all migrate clean help seed isochrones distances drivetimes towns towndrivetimes schools schooldrivetimes cadastral landsize readetails deploy setup-server
 
 # Default target
 help:
@@ -8,6 +8,9 @@ help:
 	@echo "  make run           - Run the web server with live reload (air)"
 	@echo "  make build         - Build server, scraper, and tools binaries"
 	@echo "  make scrape        - Run the property scraper (ARGS=\"-source=farmproperty -pages=1\")"
+	@echo "  make scrape-all    - Run all scrapers (farmproperty, farmbuy, rea, domain-web)"
+	@echo "  make calc-all      - Run all calculations (distances, drivetimes, towns, schools, cadastral)"
+	@echo "  make landsize      - Backfill land size from cadastral data for properties with <10 HA"
 	@echo "  make seed          - Seed database with sample properties"
 	@echo "  make isochrones    - Generate Sutherland drive-time isochrone GeoJSON"
 	@echo "  make distances     - Calculate property distances (straight-line)"
@@ -41,6 +44,13 @@ build:
 #    or: go run ./cmd/scraper -source=farmproperty -pages=1
 scrape:
 	go run ./cmd/scraper $(ARGS)
+
+# Run all scrapers (stops early if no new results on page 1)
+scrape-all:
+	go run ./cmd/scraper -source farmproperty
+	go run ./cmd/scraper -source farmbuy
+	go run ./cmd/scraper -source rea -scrapingbee F2O2MGXMWTJBI2G53CR06M0OCJRR7JD5A5WL21IE4ZTMQ3CTNAEB4E1EGRD0WP6TYTAYJQRHRHOCAAX8
+	go run ./cmd/scraper -source domain-web
 
 # Seed database with sample data
 seed:
@@ -77,6 +87,20 @@ schooldrivetimes:
 
 # Fetch cadastral lot boundaries
 cadastral:
+	go run ./cmd/tools cadastral
+
+# Backfill land size from cadastral data for properties with <10 HA
+landsize:
+	go run ./cmd/tools landsize
+
+# Run all calculations
+calc-all:
+	go run ./cmd/tools distances
+	go run ./cmd/tools drivetimes
+	go run ./cmd/tools towns
+	go run ./cmd/tools towndrivetimes
+	go run ./cmd/tools schools
+	go run ./cmd/tools schooldrivetimes
 	go run ./cmd/tools cadastral
 
 # Fetch full listing details for REA properties

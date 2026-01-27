@@ -17,7 +17,7 @@ import (
 func main() {
 	// Parse command line flags
 	dbPath := flag.String("db", "", "Path to SQLite database")
-	maxPages := flag.Int("pages", 5, "Maximum pages to scrape per property type")
+	maxPages := flag.Int("pages", 0, "Maximum pages to scrape (0 = all pages)")
 	workers := flag.Int("workers", 3, "Number of concurrent workers")
 	delay := flag.Duration("delay", 2*time.Second, "Delay between requests")
 	source := flag.String("source", "farmproperty", "Source to scrape: farmproperty, farmbuy, rea, domain, domain-web, or all")

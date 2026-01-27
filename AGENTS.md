@@ -115,28 +115,30 @@ curl http://localhost:8080/api/filters/options
 
 ## Scraper Usage
 
+By default, the scraper fetches all available pages. Use `-pages N` to limit to N pages.
+
 ```bash
-# FarmProperty (primary, no bot protection)
-go run cmd/scraper/main.go -source farmproperty -pages 10
+# FarmProperty (primary, no bot protection) - all pages
+go run cmd/scraper/main.go -source farmproperty
 
-# FarmBuy (secondary, no bot protection)
-go run cmd/scraper/main.go -source farmbuy -pages 10
+# FarmBuy (secondary, no bot protection) - all pages
+go run cmd/scraper/main.go -source farmbuy
 
-# REA (uses ScrapingBee to bypass Kasada)
+# REA (uses ScrapingBee to bypass Kasada) - limit pages to control costs
 go run cmd/scraper/main.go -source rea -scrapingbee $SCRAPINGBEE_API_KEY -pages 5 -geocode
 
 # Domain API (uses official API - recommended, includes coordinates)
-go run cmd/scraper/main.go -source domain -domain-api-key $DOMAIN_API_KEY -pages 10
+go run cmd/scraper/main.go -source domain -domain-api-key $DOMAIN_API_KEY
 
 # Domain Web (no API key required, traditional web scraping)
-go run cmd/scraper/main.go -source domain-web -pages 10
+go run cmd/scraper/main.go -source domain-web
 
 # Domain Web with custom URL (apply your own filters on domain.com.au and copy the URL)
-go run cmd/scraper/main.go -source domain-web -pages 10 -domain-web-url "https://www.domain.com.au/sale/sydney-nsw/?ptype=vacant-land&price=0-2000000"
+go run cmd/scraper/main.go -source domain-web -domain-web-url "https://www.domain.com.au/sale/sydney-nsw/?ptype=vacant-land&price=0-2000000"
 
 # All working sources (recommended)
-go run cmd/scraper/main.go -source farmproperty -pages 10 && \
-go run cmd/scraper/main.go -source farmbuy -pages 10 -geocode
+go run cmd/scraper/main.go -source farmproperty && \
+go run cmd/scraper/main.go -source farmbuy -geocode
 ```
 
 **Note on REA:** realestate.com.au uses Kasada bot protection which blocks direct HTTP requests and headless browsers. The scraper uses ScrapingBee's stealth proxy mode to bypass this protection. You need a ScrapingBee API key (pass via `-scrapingbee` flag or `SCRAPINGBEE_API_KEY` env var). Each page costs ~75 credits. REA listings don't include coordinates, so `-geocode` flag is recommended.

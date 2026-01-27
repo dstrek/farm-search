@@ -46,6 +46,8 @@ func main() {
 		calculateSchoolDriveTimes()
 	case "cadastral":
 		fetchCadastralLots()
+	case "landsize":
+		backfillLandSizeFromCadastral()
 	case "readetails":
 		fetchREADetails()
 	case "seed":
@@ -68,6 +70,7 @@ func printUsage() {
 	fmt.Println("  schools           Calculate nearest schools for all properties")
 	fmt.Println("  schooldrivetimes  Calculate drive times to nearest schools for all properties")
 	fmt.Println("  cadastral         Fetch cadastral lot boundaries for properties")
+	fmt.Println("  landsize          Backfill land size from cadastral data for properties with <10 HA")
 	fmt.Println("  readetails        Fetch full listing details for REA properties (via ScrapingBee or Bright Data)")
 	fmt.Println("  seed              Seed database with sample data")
 }
@@ -828,6 +831,72 @@ func fetchCadastralLots() {
 
 	totalLots, _ := database.GetCadastralLotCount()
 	log.Printf("Done! Properties: %d success, %d failed. Total lots in DB: %d", success, failed, totalLots)
+}
+
+func backfillLandSizeFromCadastral() {
+	dbPath := flag.String("db", "data/farm-search.db", "Database path")
+	flag.Parse()
+
+	database, err := db.New(*dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	// 10 hectares = 100,000 sqm
+	thresholdSqm := 100000.0
+
+	// Get properties with cadastral lots where land_size_sqm is NULL or < 10 HA
+	properties, err := database.GetPropertiesWithSmallLandSize(thresholdSqm)
+	if err != nil {
+		log.Fatalf("Failed to get properties: %v", err)
+	}
+
+	if len(properties) == 0 {
+		log.Println("No properties need land size backfill")
+		return
+	}
+
+	log.Printf("Found %d properties with land size < 10 HA that have cadastral data", len(properties))
+
+	updated := 0
+	skipped := 0
+
+	for i, p := range properties {
+		// Get total cadastral area for this property
+		totalArea, err := database.GetTotalCadastralAreaForProperty(p.ID)
+		if err != nil {
+			log.Printf("[%d/%d] Property %d: Failed to get cadastral area: %v", i+1, len(properties), p.ID, err)
+			skipped++
+			continue
+		}
+
+		if totalArea <= 0 {
+			log.Printf("[%d/%d] Property %d (%s): No cadastral area found", i+1, len(properties), p.ID, p.Suburb)
+			skipped++
+			continue
+		}
+
+		// Update the property's land size
+		err = database.UpdatePropertyLandSize(p.ID, totalArea)
+		if err != nil {
+			log.Printf("[%d/%d] Property %d: Failed to update: %v", i+1, len(properties), p.ID, err)
+			skipped++
+			continue
+		}
+
+		oldHA := p.LandSizeSqm / 10000
+		newHA := totalArea / 10000
+
+		location := p.Suburb
+		if p.Address != "" {
+			location = p.Address
+		}
+		log.Printf("[%d/%d] Property %d (%s): %.1f HA -> %.1f HA", i+1, len(properties), p.ID, location, oldHA, newHA)
+		updated++
+	}
+
+	log.Printf("Done! Updated %d properties, skipped %d", updated, skipped)
 }
 
 func fetchREADetails() {

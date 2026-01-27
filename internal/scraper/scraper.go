@@ -33,7 +33,7 @@ type Config struct {
 // DefaultConfig returns default scraper settings
 func DefaultConfig() Config {
 	return Config{
-		MaxPages:     10,
+		MaxPages:     0, // 0 = all pages
 		DelayBetween: 2 * time.Second,
 		Workers:      3,
 		PropertyTypes: []string{
@@ -132,10 +132,18 @@ func (s *Scraper) Run(ctx context.Context) error {
 
 	// Scrape FarmProperty if selected
 	if s.config.Source == "farmproperty" || s.config.Source == "all" {
+		// Create exists checker to stop pagination when we hit already-scraped properties
+		var existsChecker ExistsChecker
+		if !s.config.FullRefresh {
+			existsChecker = func(externalIDs []string) (map[string]bool, error) {
+				return s.db.PropertiesExist(externalIDs, "farmproperty")
+			}
+		}
+
 		for _, region := range s.config.Regions {
 			log.Printf("Scraping FarmProperty for %s...", region)
 
-			listings, err := s.farmProperty.ScrapeListings(ctx, region, s.config.MaxPages)
+			listings, err := s.farmProperty.ScrapeListingsWithExistsCheck(ctx, region, s.config.MaxPages, existsChecker)
 			if err != nil {
 				log.Printf("Error scraping FarmProperty %s: %v", region, err)
 				continue
@@ -158,10 +166,18 @@ func (s *Scraper) Run(ctx context.Context) error {
 
 	// Scrape FarmBuy if selected
 	if s.config.Source == "farmbuy" || s.config.Source == "all" {
+		// Create exists checker to stop pagination when we hit already-scraped properties
+		var existsChecker ExistsChecker
+		if !s.config.FullRefresh {
+			existsChecker = func(externalIDs []string) (map[string]bool, error) {
+				return s.db.PropertiesExist(externalIDs, "farmbuy")
+			}
+		}
+
 		for _, region := range s.config.Regions {
 			log.Printf("Scraping FarmBuy for %s...", region)
 
-			listings, err := s.farmBuy.ScrapeListings(ctx, region, s.config.MaxPages)
+			listings, err := s.farmBuy.ScrapeListingsWithExistsCheck(ctx, region, s.config.MaxPages, existsChecker)
 			if err != nil {
 				log.Printf("Error scraping FarmBuy %s: %v", region, err)
 				continue

@@ -200,7 +200,7 @@ func (s *DomainScraper) ScrapeListingsWithExistsCheck(ctx context.Context, state
 		},
 	}
 
-	for page := 1; page <= maxPages; page++ {
+	for page := 1; maxPages <= 0 || page <= maxPages; page++ {
 		select {
 		case <-ctx.Done():
 			return allListings, ctx.Err()

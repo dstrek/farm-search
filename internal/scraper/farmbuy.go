@@ -58,9 +58,15 @@ type farmBuyListing struct {
 
 // ScrapeListings scrapes property listings from FarmBuy
 func (s *FarmBuyScraper) ScrapeListings(ctx context.Context, state string, maxPages int) ([]models.Property, error) {
+	return s.ScrapeListingsWithExistsCheck(ctx, state, maxPages, nil)
+}
+
+// ScrapeListingsWithExistsCheck scrapes property listings with optional duplicate detection.
+// If existsChecker is provided and a page contains no new properties, scraping stops early.
+func (s *FarmBuyScraper) ScrapeListingsWithExistsCheck(ctx context.Context, state string, maxPages int, existsChecker ExistsChecker) ([]models.Property, error) {
 	var allListings []models.Property
 
-	for page := 1; page <= maxPages; page++ {
+	for page := 1; maxPages <= 0 || page <= maxPages; page++ {
 		select {
 		case <-ctx.Done():
 			return allListings, ctx.Err()
@@ -73,6 +79,35 @@ func (s *FarmBuyScraper) ScrapeListings(ctx context.Context, state string, maxPa
 		if err != nil {
 			log.Printf("Error scraping FarmBuy page %d: %v", page, err)
 			break
+		}
+
+		// If we have an exists checker, check if any properties on this page are new
+		if existsChecker != nil && len(listings) > 0 {
+			externalIDs := make([]string, len(listings))
+			for i, l := range listings {
+				externalIDs[i] = l.ExternalID
+			}
+
+			existsMap, err := existsChecker(externalIDs)
+			if err != nil {
+				log.Printf("Warning: failed to check existing properties: %v", err)
+			} else {
+				// Count how many are new
+				newCount := 0
+				for _, l := range listings {
+					if !existsMap[l.ExternalID] {
+						newCount++
+					}
+				}
+
+				log.Printf("Page %d: %d listings, %d new, %d already scraped", page, len(listings), newCount, len(listings)-newCount)
+
+				// If no new properties on this page, stop pagination
+				if newCount == 0 {
+					log.Printf("No new properties found on page %d, stopping pagination (all %d already scraped)", page, len(listings))
+					break
+				}
+			}
 		}
 
 		allListings = append(allListings, listings...)
@@ -90,12 +125,8 @@ func (s *FarmBuyScraper) ScrapeListings(ctx context.Context, state string, maxPa
 }
 
 func (s *FarmBuyScraper) scrapePage(ctx context.Context, state string, page int) ([]models.Property, bool, error) {
-	// Build the search URL
-	// FarmBuy uses query parameters: sort=datedesc for most recent, page=N for pagination
-	searchURL := fmt.Sprintf("%s/state/%s?sort=datedesc", s.baseURL, strings.ToLower(state))
-	if page > 1 {
-		searchURL = fmt.Sprintf("%s&page=%d", searchURL, page)
-	}
+	// Build the search URL - sort by newest first so early-stop logic works
+	searchURL := fmt.Sprintf("%s/state/%s?sort-dropdown=datedesc&page=%d", s.baseURL, strings.ToLower(state), page)
 
 	body, err := s.fetch(ctx, searchURL)
 	if err != nil {
